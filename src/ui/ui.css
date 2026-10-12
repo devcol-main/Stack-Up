@@ -1,0 +1,115 @@
+@font-face {
+  font-family: 'Geist';
+  src: url('../assets/fonts/geist-latin-wght-normal.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+
+/* --u = 플레이 열 폭의 1% (열 폭 = min(화면 폭, 화면 높이 * 9/16), view의 maxAspect와 같다). */
+.ui {
+  --u: min(1vw, 0.5625vh);
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 800;
+  color: #fff;
+  opacity: 0; /* 폰트 로드 후 .ready로 표시 (FOUT 방지) */
+  transition: opacity 0.15s;
+}
+.ui.ready { opacity: 1; }
+.ui [data-ui] { pointer-events: auto; }
+.col { position: relative; width: calc(var(--u) * 100); height: 100%; }
+
+/* HUD: HTML 오버레이 + CSS text-shadow. 값이 바뀔 때만 DOM을 갱신하므로 글로우 비용은 변경 시점에만 든다. */
+.logo {
+  position: absolute; left: calc(var(--u) * 5); top: calc(var(--u) * 5);
+  font-size: calc(var(--u) * 4.2); letter-spacing: 0.04em; color: #ff7ad9;
+}
+.score {
+  position: absolute; left: 0; right: 0; top: calc(var(--u) * 14);
+  text-align: center; font-size: calc(var(--u) * 16); line-height: 1;
+  text-shadow: 0 0 calc(var(--u) * 2) #ff3cc8, 0 0 calc(var(--u) * 6) #ff3cc8;
+}
+.perfect {
+  position: absolute; left: 0; right: 0; top: calc(var(--u) * 34);
+  text-align: center; font-size: calc(var(--u) * 5); opacity: 0;
+  text-shadow: 0 0 calc(var(--u) * 1.5) #33e1ff, 0 0 calc(var(--u) * 4) #33e1ff;
+}
+.perfect.show { animation: perfect-fade 0.8s ease-out forwards; }
+@keyframes perfect-fade {
+  0% { opacity: 1; transform: scale(1.15); }
+  20% { transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .perfect.show { animation-name: perfect-fade-rm; }
+  @keyframes perfect-fade-rm { 0% { opacity: 1; } 100% { opacity: 0; } }
+}
+
+.mute {
+  position: absolute; right: calc(var(--u) * 3); top: calc(var(--u) * 3);
+  min-width: 44px; min-height: 44px; padding: 0 calc(var(--u) * 3);
+  font: inherit; font-size: calc(var(--u) * 3.4); color: #c9a8ff;
+  background: rgba(5, 0, 12, 0.35); border: 1px solid rgba(201, 168, 255, 0.5); border-radius: 999px;
+  cursor: pointer; touch-action: manipulation;
+}
+.mute[aria-pressed='true'] { color: #8a7aa8; border-color: rgba(138, 122, 168, 0.5); }
+.mute:focus-visible, .nick:focus-visible, .submit:focus-visible, .retry:focus-visible { outline: 2px solid #33e1ff; outline-offset: 2px; }
+
+.screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; }
+.ui[data-phase='title'] .title-screen,
+.ui[data-phase='gameOver'] .over-screen { display: flex; }
+.ui:not([data-phase='playing']) .perfect { visibility: hidden; }
+.ui[data-phase='title'] .score, .ui[data-phase='title'] .logo, .ui[data-phase='gameOver'] .score { display: none; }
+
+.title-screen { justify-content: center; padding-bottom: calc(var(--u) * 20); text-align: center; }
+.title { margin: 0; font-size: calc(var(--u) * 13); letter-spacing: 0.04em; color: #fff;
+  text-shadow: 0 0 calc(var(--u) * 2) #ff3cc8, 0 0 calc(var(--u) * 6) #ff3cc8; }
+.tap-hint { margin: calc(var(--u) * 8) 0 0; font-size: calc(var(--u) * 5); color: #ff7ad9; animation: blink 1.4s ease-in-out infinite; }
+.sub { margin: calc(var(--u) * 3) 0 0; font-size: calc(var(--u) * 3.2); font-weight: 600; color: #c9a8ff; }
+@keyframes blink { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .tap-hint { animation: none; } }
+
+.over-screen { background: rgba(5, 0, 12, 0.72); justify-content: center; padding: calc(var(--u) * 4) calc(var(--u) * 6); box-sizing: border-box; text-align: center; }
+.over-title { font-size: calc(var(--u) * 8); letter-spacing: 0.04em;
+  text-shadow: 0 0 calc(var(--u) * 2) #ff3cc8, 0 0 calc(var(--u) * 5) #ff3cc8; }
+.final-score { margin-top: calc(var(--u) * 2); font-size: calc(var(--u) * 17); line-height: 1.1;
+  text-shadow: 0 0 calc(var(--u) * 2) #33e1ff, 0 0 calc(var(--u) * 6) #33e1ff; }
+.best { margin-top: calc(var(--u) * 1); font-size: calc(var(--u) * 4); font-weight: 600; color: #c9a8ff; }
+.collapsed { margin-top: calc(var(--u) * 1); font-size: calc(var(--u) * 2.8); font-weight: 600; color: #8a7aa8; }
+
+.nick-form { display: flex; gap: calc(var(--u) * 2); margin-top: calc(var(--u) * 5); width: 100%; }
+.nick-form[hidden] { display: none; }
+.nick {
+  flex: 1; min-width: 0; min-height: 44px; padding: 0 calc(var(--u) * 3); box-sizing: border-box;
+  font: inherit; font-size: max(16px, calc(var(--u) * 4)); /* iOS 확대 방지: 16px 이상 */ font-weight: 600; color: #fff;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(201, 168, 255, 0.5); border-radius: 8px;
+  user-select: text; -webkit-user-select: text;
+}
+.nick::placeholder { color: #8a7aa8; }
+.submit {
+  min-height: 44px; padding: 0 calc(var(--u) * 4); font: inherit; font-size: calc(var(--u) * 3.6); color: #07020f;
+  background: #33e1ff; border: 0; border-radius: 8px; cursor: pointer; touch-action: manipulation;
+}
+
+.board { list-style: none; margin: calc(var(--u) * 4) 0 0; padding: 0; width: 100%; font-size: calc(var(--u) * 3.4); font-weight: 600; }
+.board li { display: flex; gap: calc(var(--u) * 2); padding: calc(var(--u) * 0.7) calc(var(--u) * 2); border-radius: 6px; color: #d9c8ff; text-align: left; }
+.board li[hidden] { display: none; }
+.board .rank { width: 2.2em; color: #8a7aa8; }
+.board .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board .pts { font-weight: 800; }
+.board li.me { background: rgba(255, 60, 200, 0.22); color: #fff; box-shadow: inset 0 0 0 1px #ff3cc8; }
+.board li.empty { justify-content: center; color: #8a7aa8; }
+
+.retry {
+  margin-top: calc(var(--u) * 5); min-height: 48px; padding: 0 calc(var(--u) * 8); font: inherit; font-size: calc(var(--u) * 4.6);
+  color: #ff7ad9; background: transparent; border: 0; cursor: pointer; touch-action: manipulation; pointer-events: auto;
+  animation: blink 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .retry { animation: none; } }

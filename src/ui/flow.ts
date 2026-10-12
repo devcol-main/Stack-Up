@@ -1,0 +1,55 @@
+// 화면 흐름 상태 기계. DOM/시간 API 없이 dt만 받는다.
+export type Phase = 'title' | 'playing' | 'gameOver';
+/** tap()이 호출자에게 요구하는 동작. */
+export type TapAction = 'start' | 'drop' | 'retry' | 'none';
+
+export class GameFlow {
+  phase: Phase = 'title';
+  /** 현재 판에서 점수를 이미 제출했는가. */
+  submitted = false;
+  /** 판 번호. 비동기 결과(리더보드 조회)가 이전 판 것인지 구별하는 데 쓴다. */
+  round = 0;
+  private sinceOver = 0;
+
+  constructor(private readonly inputLockSec: number) {}
+
+  update(dt: number): void {
+    if (this.phase === 'gameOver') this.sinceOver += dt;
+  }
+
+  /**
+   * 사용자 입력(탭/클릭/스페이스). 타이틀의 첫 입력은 시작만 하고 drop하지 않는다.
+   * 게임 오버 직후 잠금 시간 동안은 'none'.
+   */
+  tap(): TapAction {
+    switch (this.phase) {
+      case 'title':
+        this.phase = 'playing';
+        return 'start';
+      case 'playing':
+        return 'drop';
+      case 'gameOver':
+        if (this.sinceOver < this.inputLockSec) return 'none';
+        this.phase = 'playing';
+        this.round++;
+        this.submitted = false;
+        return 'retry';
+    }
+  }
+
+  /** core의 gameOver 이벤트에서 호출. 플레이 중일 때만 전이한다. */
+  endGame(): boolean {
+    if (this.phase !== 'playing') return false;
+    this.phase = 'gameOver';
+    this.sinceOver = 0;
+    this.submitted = false;
+    return true;
+  }
+
+  /** 점수 제출 권한을 얻는다. 판당 한 번만 true. 게임 오버 상태에서만 가능. */
+  claimSubmit(): boolean {
+    if (this.phase !== 'gameOver' || this.submitted) return false;
+    this.submitted = true;
+    return true;
+  }
+}

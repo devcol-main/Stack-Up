@@ -5,12 +5,39 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Stack Up</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #07020f; overflow: hidden; }
+  html, body { margin: 0; height: 100%; background: #07020f; overflow: hidden; touch-action: manipulation; }
   canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
+<div id="ui" class="ui" data-phase="title">
+  <div class="col">
+    <div class="logo">STACK UP</div>
+    <button id="mute" class="mute" type="button" data-ui aria-pressed="false">Sound: on</button>
+    <div id="score" class="score">0</div>
+    <div id="perfect" class="perfect" aria-live="off"></div>
+
+    <section class="screen title-screen">
+      <h1 class="title">STACK UP</h1>
+      <p class="tap-hint">Tap to start</p>
+      <p class="sub">Tap, click or press Space to drop the block</p>
+    </section>
+
+    <section class="screen over-screen">
+      <div class="over-title">GAME OVER</div>
+      <div id="final-score" class="final-score">0</div>
+      <div id="best" class="best">BEST 0</div>
+      <div class="collapsed">Stack collapsed</div>
+      <form id="nick-form" class="nick-form" data-ui autocomplete="off">
+        <input id="nick" class="nick" type="text" maxlength="12" placeholder="Nickname" aria-label="Nickname" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="submit" type="submit">Submit</button>
+      </form>
+      <ol id="board" class="board" data-ui></ol>
+      <button id="retry" class="retry" type="button">Tap to retry</button>
+    </section>
+  </div>
+</div>
 <script type="module" src="./src/main.ts"></script>
 </body>
 </html>

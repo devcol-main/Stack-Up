@@ -34,7 +34,7 @@ export class PiecePool {
   readonly items: Piece[] = [];
 
   constructor(size: number = VIEW_CONFIG.piecePoolSize) {
-    for (let i = 0; i < size; i++) {
+    for (let i = 0, n = Math.max(1, size); i < n; i++) {
       this.items.push({ active: false, x: 0, w: 0, level: 0, colorIndex: 0, dy: 0, vy: 0, rot: 0, vr: 0 });
     }
   }

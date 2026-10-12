@@ -24,7 +24,3 @@ export const BLOCK_STYLES: readonly BlockStyle[] = BLOCK_COLORS.map((hex) => {
     glow: hex,
   };
 });
-
-export function styleFor(colorIndex: number): BlockStyle {
-  return BLOCK_STYLES[((colorIndex % BLOCK_STYLES.length) + BLOCK_STYLES.length) % BLOCK_STYLES.length]!;
-}

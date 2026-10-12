@@ -6,7 +6,9 @@ import { StackUpRenderer } from './view/StackUpRenderer';
 const canvas = document.getElementById('game');
 if (canvas instanceof HTMLCanvasElement) {
   const logic = new StackUpLogic(createRng(Date.now()));
-  const renderer = new StackUpRenderer(canvas, logic);
+  const motionQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  const renderer = new StackUpRenderer(canvas, logic, { reducedMotion: motionQuery?.matches ?? false });
+  motionQuery?.addEventListener('change', (e) => renderer.setReducedMotion(e.matches));
 
   // 임시: 게임 오버 직후 짧은 입력 무시 후 클릭으로 재시작.
   let overTime = 0;

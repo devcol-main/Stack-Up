@@ -2,17 +2,19 @@
 import type { StackUpLogic } from '../core/StackUpLogic';
 import type { GlowSprites } from './glowSprites';
 import { levelToY, worldToScreenW, worldToScreenX, type Layout } from './layout';
+import type { Effects } from './effects';
+import { gridFlickerAlpha } from './effects';
 import type { PiecePool } from './pieces';
 import { pieceY } from './pieces';
 import { VIEW_CONFIG } from './viewConfig';
 
 /** 그리는 순서. 숫자 사이에 끼워 넣을 수 있게 간격을 둔다. */
 export const RenderPhase = {
-  Background: 0, // 그라디언트, (4번) 별
+  Background: 0, // 그라디언트 (별은 fxLayers.STARS_PHASE = 10)
   Grid: 100,
   Blocks: 200,
   Pieces: 300,
-  Effects: 400, // (4번) 외곽선 플래시, 링, 입자
+  Effects: 400, // 외곽선 플래시, 링, 입자 (fxLayers.EffectsLayer)
   Overlay: 500, // (6번) HUD 등
 } as const;
 
@@ -23,6 +25,9 @@ export interface FrameContext {
   logic: StackUpLogic;
   sprites: GlowSprites;
   pieces: PiecePool;
+  effects: Effects;
+  /** prefers-reduced-motion. */
+  reducedMotion: boolean;
   /** 카메라 높이 (층 단위). */
   cam: number;
   /** 누적 시간 (초). */
@@ -65,13 +70,14 @@ export class BackgroundLayer implements RenderLayer {
 export class GridLayer implements RenderLayer {
   readonly phase = RenderPhase.Grid;
 
-  draw({ ctx, layout, cam }: FrameContext): void {
+  draw({ ctx, layout, cam, time, reducedMotion }: FrameContext): void {
     const gy = levelToY(layout, 0, cam) + layout.blockH; // 베이스 블록 바로 아래
     if (gy >= layout.cssH) return;
     const H = layout.cssH;
     const cx = layout.cssW / 2;
     const c = VIEW_CONFIG;
     ctx.strokeStyle = c.gridColor;
+    ctx.globalAlpha = gridFlickerAlpha(time, reducedMotion);
     ctx.lineWidth = 1;
     ctx.beginPath();
     const n = c.gridHorizontalLines;
@@ -88,6 +94,7 @@ export class GridLayer implements RenderLayer {
       ctx.lineTo(cx + k * bottom, H);
     }
     ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 }
 

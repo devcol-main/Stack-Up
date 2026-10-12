@@ -33,7 +33,9 @@ describe('PiecePool', () => {
     const b = pool.spawn(0, 0.1, 2, 0, 1);
     const c = pool.spawn(0, 0.1, 3, 0, 1);
     expect(c).toBe(a);
-    expect(pool.items).toContain(b);
+    expect(b.active).toBe(true);
+    expect(b.level).toBe(2);
+    expect(c.level).toBe(3);
     expect(pool.activeCount).toBe(2);
   });
 

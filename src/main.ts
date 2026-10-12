@@ -80,6 +80,7 @@ if (canvas instanceof HTMLCanvasElement) {
       const active = document.activeElement;
       if (active instanceof HTMLElement && (isTextTarget(active) || active === ui.retryButton)) active.blur();
       logic.reset();
+      audio.unduck();
       renderer.reset();
       ui.setScore(0);
       ui.setPhase('playing');

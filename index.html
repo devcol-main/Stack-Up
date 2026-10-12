@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Stack Up</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #07020f; overflow: hidden; touch-action: manipulation; }
-  canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
+  html, body { margin: 0; height: 100%; background: #07020f; overflow: hidden; overscroll-behavior: none; touch-action: none; }
+  /* fixed + inset: iOS 주소창/iframe 높이 변화에 100vh 대신 실제 보이는 영역을 따른다 */
+  canvas { display: block; position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; outline: none; }
 </style>
 </head>
 <body>
-<canvas id="game"></canvas>
+<canvas id="game" tabindex="-1"></canvas>
 <div id="ui" class="ui" data-phase="title">
   <div class="col">
     <div class="logo">STACK UP</div>

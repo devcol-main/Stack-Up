@@ -4,10 +4,13 @@ import { UI_CONFIG } from './uiConfig';
 export function waitForFont(): Promise<void> {
   const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
   if (!fonts) return Promise.resolve();
-  const timeout = new Promise<void>((r) => setTimeout(r, UI_CONFIG.fontTimeoutMs));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((r) => {
+    timer = setTimeout(r, UI_CONFIG.fontTimeoutMs);
+  });
   const load = fonts.load(UI_CONFIG.fontSpec).then(
     () => undefined,
     () => undefined,
   );
-  return Promise.race([load, timeout]);
+  return Promise.race([load, timeout]).finally(() => clearTimeout(timer));
 }

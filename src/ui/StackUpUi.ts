@@ -74,9 +74,23 @@ export class StackUpUi {
   /** PERFECT 연출 시작. 콤보 2 이상이면 `PERFECT ×n`. */
   flashPerfect(combo: number): void {
     this.perfect.textContent = combo >= 2 ? `PERFECT ×${combo}` : 'PERFECT';
-    this.perfect.classList.remove('show');
-    void this.perfect.offsetWidth; // 애니메이션 재시작
-    this.perfect.classList.add('show');
+    const el = this.perfect;
+    if (!el.classList.contains('show')) {
+      el.classList.add('show');
+      return;
+    }
+    // 이미 재생 중/종료(fill forwards)면 Web Animations API로 처음부터 다시 재생 (강제 reflow 없음)
+    const anims = typeof el.getAnimations === 'function' ? el.getAnimations() : [];
+    if (anims.length === 0) {
+      el.classList.remove('show');
+      void el.offsetWidth; // 구형 브라우저 폴백
+      el.classList.add('show');
+      return;
+    }
+    for (let i = 0; i < anims.length; i++) {
+      anims[i]!.cancel();
+      anims[i]!.play();
+    }
   }
 
   setMuted(m: boolean): void {

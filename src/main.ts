@@ -6,6 +6,7 @@ import { StackUpRenderer } from './view/StackUpRenderer';
 import { GameFlow } from './ui/flow';
 import { BestScore, NicknameStore, browserStorage } from './ui/records';
 import { StackUpUi } from './ui/StackUpUi';
+import { FrameClock } from './ui/frameClock';
 import { waitForFont } from './ui/fonts';
 import { UI_CONFIG } from './ui/uiConfig';
 import './ui/ui.css';
@@ -77,7 +78,7 @@ if (canvas instanceof HTMLCanvasElement) {
     if (action === 'start' || action === 'retry') {
       // 숨겨질 닉네임 입력에 포커스가 남아 다음 판 Space가 막히지 않게
       const active = document.activeElement;
-      if (active instanceof HTMLElement && isTextTarget(active)) active.blur();
+      if (active instanceof HTMLElement && (isTextTarget(active) || active === ui.retryButton)) active.blur();
       logic.reset();
       renderer.reset();
       ui.setScore(0);
@@ -87,10 +88,20 @@ if (canvas instanceof HTMLCanvasElement) {
     }
   };
 
+  // iframe 안에서도 키보드(Space)가 먹도록 첫 포인터 입력에서 포커스를 가져온다.
+  const grabFocus = (): void => {
+    try {
+      window.focus();
+      canvas.focus({ preventScroll: true });
+    } catch {
+      // 포커스 불가 환경은 무시
+    }
+  };
   window.addEventListener('pointerdown', (e) => {
     audio.unlock();
     if (e.button !== 0) return;
     if (e.target instanceof Element && e.target.closest('[data-ui]')) return;
+    grabFocus();
     e.preventDefault();
     onTap();
   });
@@ -98,6 +109,9 @@ if (canvas instanceof HTMLCanvasElement) {
     audio.unlock();
     if (isTextTarget(e.target)) return; // 닉네임 입력 중에는 스페이스/M이 게임으로 새지 않는다
     if (e.code === 'KeyM' && !e.repeat) toggleMute();
+    // 포커스된 버튼(retry/Submit/Sound)의 Space/Enter는 각 버튼의 click/submit 핸들러만 처리한다.
+    // keydown까지 게임 입력으로 처리하면 이중 처리된다(재시작 직후 drop, 점수 미제출, 음소거+drop).
+    if (e.target instanceof HTMLElement && e.target.closest('button')) return;
     if (e.code === 'Space') {
       e.preventDefault();
       if (!e.repeat) onTap();
@@ -120,15 +134,43 @@ if (canvas instanceof HTMLCanvasElement) {
     submitScore();
     ui.input.blur();
   });
-  window.addEventListener('resize', () => renderer.resize());
+
+  // 리사이즈: window resize, iframe 크기 변경(ResizeObserver), 모바일 주소창/키보드(visualViewport)를 모두 받아
+  // 프레임당 한 번만 처리한다(글로우 스프라이트 재생성 폭주 방지).
+  let resizeDirty = false;
+  const markResize = (): void => {
+    resizeDirty = true;
+  };
+  window.addEventListener('resize', markResize);
+  window.visualViewport?.addEventListener('resize', markResize);
+  if (typeof ResizeObserver === 'function') new ResizeObserver(markResize).observe(canvas);
 
   // 폰트가 준비되면(실패/타임아웃 포함) UI를 보여준다. 게임 루프는 기다리지 않는다.
   void waitForFont().then(() => ui.show());
 
-  let last = performance.now();
+  // 일시정지: 탭이 숨겨지면 dt를 0으로 두고(게임/이펙트/입력 잠금 시간 모두 정지) 오디오를 멈춘다.
+  const clock = new FrameClock(UI_CONFIG.maxFrameDt);
+  const setPaused = (paused: boolean): void => {
+    if (paused === clock.isPaused) return;
+    if (paused) {
+      clock.pause();
+      audio.suspend();
+    } else {
+      clock.resume();
+      audio.resume();
+    }
+  };
+  document.addEventListener('visibilitychange', () => setPaused(document.hidden));
+  window.addEventListener('pagehide', () => setPaused(true));
+  window.addEventListener('pageshow', () => setPaused(document.hidden));
+  if (document.hidden) setPaused(true);
+
   const frame = (now: number): void => {
-    const dt = Math.min(UI_CONFIG.maxFrameDt, (now - last) / 1000);
-    last = now;
+    const dt = clock.tick(now);
+    if (resizeDirty) {
+      resizeDirty = false;
+      renderer.resize();
+    }
     logic.update(dt);
     logic.consumeEvents(onEvent);
     flow.update(dt);

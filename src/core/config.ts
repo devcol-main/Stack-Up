@@ -26,14 +26,18 @@ export interface StackUpConfig {
   readonly comboBonusCap: number;
   /** 이동 블록이 화면 밖으로 나갈 수 있는 비율(블록 폭 대비). 시안: 왼쪽 90%, 오른쪽 90% 까지 */
   readonly overshootRatio: number;
+  /** 첫 마일스톤 층수. */
+  readonly milestoneFirst: number;
+  /** 첫 마일스톤 이후 간격 (층). 층이 간격의 배수일 때 발생. */
+  readonly milestoneInterval: number;
   /** 블록 색 팔레트 길이 (색 인덱스 순환용). 실제 색은 view가 정한다. */
   readonly colorCount: number;
 }
 
 export const DEFAULT_CONFIG: StackUpConfig = {
   baseWidth: 0.55,
-  perfectToleranceRatio: 0.03,
-  perfectToleranceMin: 0.004,
+  perfectToleranceRatio: 0.045,
+  perfectToleranceMin: 0.006,
   regrowEveryCombo: 5,
   regrowRatio: 0.08,
   speedStart: 0.4,
@@ -42,5 +46,7 @@ export const DEFAULT_CONFIG: StackUpConfig = {
   pointsPerLevel: 1,
   comboBonusCap: 5,
   overshootRatio: 0.9,
+  milestoneFirst: 5,
+  milestoneInterval: 10,
   colorCount: 5,
 };

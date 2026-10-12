@@ -48,6 +48,8 @@ export function cueForEvent(ev: StackUpEvent): SoundCue | null {
       return { kind: 'regrow', step: 0 };
     case 'gameOver':
       return { kind: 'gameOver', step: 0 };
+    case 'milestone':
+      return null; // 전용 사운드는 이후 하위 작업
   }
 }
 

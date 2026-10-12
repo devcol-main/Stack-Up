@@ -97,10 +97,154 @@ describe('Perfect tolerance boundary', () => {
 
   it('tolerance never drops below the configured minimum on narrow blocks', () => {
     const g = make();
-    g.top.w = 0.05; // 3% = 0.0015 < min
+    g.top.w = 0.05; // ratio 허용치 < min
     g.current.w = 0.05;
     dropAt(g, DEFAULT_CONFIG.perfectToleranceMin * 0.99);
     expect(g.combo).toBe(1);
+  });
+
+  it('offset just outside the configured minimum on narrow blocks is cut', () => {
+    const g = make();
+    g.top.w = 0.05;
+    g.current.w = 0.05;
+    dropAt(g, DEFAULT_CONFIG.perfectToleranceMin * 1.01);
+    expect(g.combo).toBe(0);
+  });
+
+  it('tolerance is 4.5% of the block width and 0.006 minimum', () => {
+    expect(DEFAULT_CONFIG.perfectToleranceRatio).toBe(0.045);
+    expect(DEFAULT_CONFIG.perfectToleranceMin).toBe(0.006);
+  });
+
+  it('tolerance scales with the current (narrowed) width, not the base width', () => {
+    const g = make();
+    dropAt(g, 0.1); // 폭이 좁아진다
+    const w = g.top.w;
+    const tol = Math.max(w * DEFAULT_CONFIG.perfectToleranceRatio, DEFAULT_CONFIG.perfectToleranceMin);
+    expect(tol).toBeLessThan(W0 * DEFAULT_CONFIG.perfectToleranceRatio);
+    dropAt(g, tol * 1.01);
+    expect(g.combo).toBe(0);
+    const g2 = make();
+    dropAt(g2, 0.1);
+    dropAt(g2, tol * 0.99);
+    expect(g2.combo).toBe(1);
+  });
+});
+
+describe('milestone', () => {
+  function milestones(g: StackUpLogic, floorsToStack: number): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < floorsToStack; i++) {
+      dropAt(g, 0);
+      g.consumeEvents((e) => {
+        if (e.type === 'milestone') out.push(e.floors);
+      });
+    }
+    return out;
+  }
+
+  it('perfect stacking emits milestones only at 5, 10, 20, 30 and 40 floors', () => {
+    expect(milestones(make(), 40)).toEqual([5, 10, 20, 30, 40]);
+  });
+
+  it('floors between milestones emit no milestone event', () => {
+    const g = make();
+    const seen: number[] = [];
+    for (let f = 1; f <= 45; f++) {
+      dropAt(g, 0);
+      let got = false;
+      g.consumeEvents((e) => {
+        if (e.type === 'milestone') got = true;
+      });
+      if (got) seen.push(f);
+    }
+    for (const f of [1, 2, 3, 4, 6, 9, 11, 15, 19, 21, 25, 35, 41, 45]) expect(seen).not.toContain(f);
+  });
+
+  it('milestone event carries level and floors equal to the stacked floor count', () => {
+    const g = make();
+    for (let i = 0; i < 4; i++) dropAt(g, 0);
+    events(g);
+    dropAt(g, 0);
+    const m = events(g).find((e) => e.type === 'milestone');
+    expect(m).toEqual({ type: 'milestone', level: 5, floors: 5 });
+    expect(g.floors).toBe(5);
+  });
+
+  it('non-Perfect drops reaching a milestone floor also emit it', () => {
+    const g = make();
+    for (let i = 0; i < 4; i++) dropAt(g, 0);
+    events(g);
+    dropAt(g, 0.1);
+    expect(events(g).filter((e) => e.type === 'milestone')).toHaveLength(1);
+  });
+
+  it('a game over drop on a milestone floor emits no milestone', () => {
+    const g = make();
+    for (let i = 0; i < 4; i++) dropAt(g, 0);
+    events(g);
+    dropAt(g, 1); // 5층 시도, 완전히 빗나감
+    expect(g.isGameOver).toBe(true);
+    expect(events(g).some((e) => e.type === 'milestone')).toBe(false);
+  });
+
+  it('each milestone fires once per game with no duplicates', () => {
+    const list = milestones(make(), 60);
+    expect(new Set(list).size).toBe(list.length);
+    expect(list).toEqual([5, 10, 20, 30, 40, 50, 60]);
+  });
+
+  it('at most one milestone event is emitted per drop', () => {
+    const g = make();
+    for (let i = 0; i < 30; i++) {
+      dropAt(g, 0);
+      expect(events(g).filter((e) => e.type === 'milestone').length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('reset allows the same milestones to fire again in a new game', () => {
+    const g = make();
+    expect(milestones(g, 10)).toEqual([5, 10]);
+    g.reset();
+    expect(milestones(g, 10)).toEqual([5, 10]);
+  });
+
+  it('milestone comes last after cut, land, perfect and regrow in the same drop', () => {
+    const g = make();
+    dropAt(g, 0.1); // 폭 축소 (1층)
+    for (let i = 0; i < 3; i++) dropAt(g, 0); // 2~4층, 콤보 3
+    events(g);
+    dropAt(g, 0); // 5층, 콤보 4 -> perfect
+    const ev = events(g).map((e) => e.type);
+    expect(ev).toEqual(['land', 'perfect', 'milestone']);
+    // regrow와 함께: 콤보 5에서 5층이 되도록
+    const h = make();
+    for (let i = 0; i < 4; i++) dropAt(h, 0);
+    events(h);
+    dropAt(h, 0); // 5층, 콤보 5 -> regrow
+    expect(events(h).map((e) => e.type)).toEqual(['land', 'perfect', 'regrow', 'milestone']);
+    // cut과 함께
+    const k = make();
+    for (let i = 0; i < 4; i++) dropAt(k, 0);
+    events(k);
+    dropAt(k, 0.1);
+    expect(events(k).map((e) => e.type)).toEqual(['cut', 'land', 'milestone']);
+  });
+
+  it('same seed and inputs produce the same event sequence including milestones', () => {
+    const run = (seed: number): string => {
+      const g = new StackUpLogic(createRng(seed));
+      const log: StackUpEvent[] = [];
+      for (let i = 0; i < 45 && !g.isGameOver; i++) {
+        for (let k = 0; k < 5 + (i % 4); k++) g.update(1 / 60);
+        g.current.x = g.top.x + (i % 3 === 0 ? 0.1 : 0);
+        g.drop();
+        g.consumeEvents((e) => log.push(e));
+      }
+      return JSON.stringify(log);
+    };
+    expect(run(7)).toBe(run(7));
+    expect(run(7)).toContain('milestone');
   });
 });
 

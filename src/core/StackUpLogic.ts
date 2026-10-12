@@ -26,6 +26,8 @@ export type StackUpEvent =
   | { type: 'cut'; level: number; x: number; w: number; side: 'left' | 'right'; colorIndex: number }
   /** 폭 회복 (Perfect N연속). amount는 실제 늘어난 폭 (이미 W0면 0일 수 있다). */
   | { type: 'regrow'; level: number; amount: number; newWidth: number }
+  /** 층수 마일스톤 도달. floors = 쌓은 층 수 (게임 오버 이벤트의 floors와 같은 정의). */
+  | { type: 'milestone'; level: number; floors: number }
   /** 완전히 빗나감. piece = 통째로 떨어지는 블록. */
   | { type: 'gameOver'; score: number; floors: number; maxCombo: number; level: number; x: number; w: number; colorIndex: number };
 
@@ -159,6 +161,7 @@ export class StackUpLogic {
     this.events.push({ type: 'land', level, x, w, perfect, combo: this.combo });
     if (perfect) this.events.push({ type: 'perfect', level, combo: this.combo });
     if (regrow) this.events.push(regrow);
+    if (this.isMilestone(this.floors)) this.events.push({ type: 'milestone', level, floors: this.floors });
 
     this.spawn(this.sideForNext());
   }
@@ -167,6 +170,12 @@ export class StackUpLogic {
   consumeEvents(fn: (e: StackUpEvent) => void): void {
     for (let i = 0; i < this.events.length; i++) fn(this.events[i]!);
     this.events.length = 0;
+  }
+
+  /** 첫 마일스톤이거나, 그 이후 간격의 배수인 층. */
+  isMilestone(floors: number): boolean {
+    const c = this.config;
+    return floors === c.milestoneFirst || (floors > c.milestoneFirst && floors % c.milestoneInterval === 0);
   }
 
   /** 시작 방향은 rng, 이후는 층마다 좌우 번갈아. */

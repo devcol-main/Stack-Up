@@ -4,6 +4,7 @@ import { StackUpLogic, type StackUpEvent } from './core/StackUpLogic';
 import { AudioManager } from './audio/AudioManager';
 import { StackUpRenderer } from './view/StackUpRenderer';
 import { GameFlow } from './ui/flow';
+import { ConfirmGate, ReducedMotionStore, effectiveReducedMotion, hudBest, resetUserData } from './ui/options';
 import { BestScore, NicknameStore, browserStorage } from './ui/records';
 import { StackUpUi } from './ui/StackUpUi';
 import { FrameClock } from './ui/frameClock';
@@ -16,8 +17,11 @@ if (canvas instanceof HTMLCanvasElement) {
   const storage = browserStorage();
   const logic = new StackUpLogic(createRng(Date.now()));
   const motionQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
-  const renderer = new StackUpRenderer(canvas, logic, { reducedMotion: motionQuery?.matches ?? false });
-  motionQuery?.addEventListener('change', (e) => renderer.setReducedMotion(e.matches));
+  const rmStore = new ReducedMotionStore(storage, UI_CONFIG.reducedMotionKey);
+  // 축소 모드 = OS 설정 OR 수동 설정. 둘 중 하나가 바뀔 때마다 applyReducedMotion으로 view와 UI에 함께 반영한다.
+  let osReduced = motionQuery?.matches ?? false;
+  let manualReduced = rmStore.load();
+  const renderer = new StackUpRenderer(canvas, logic, { reducedMotion: effectiveReducedMotion(osReduced, manualReduced) });
 
   const audio = new AudioManager();
   const flow = new GameFlow(UI_CONFIG.gameOverInputLockSec);
@@ -26,6 +30,19 @@ if (canvas instanceof HTMLCanvasElement) {
   const nickname = new NicknameStore(storage, UI_CONFIG.nicknameKey, MAX_NICKNAME_LENGTH);
   const leaderboard: LeaderboardService = new LocalLeaderboardService(UI_CONFIG.leaderboardKey);
   ui.setMuted(audio.isMuted());
+  ui.syncAudio(audio.getSettings());
+  ui.setTitleBest(best.value);
+
+  const applyReducedMotion = (): void => {
+    const on = effectiveReducedMotion(osReduced, manualReduced);
+    renderer.setReducedMotion(on);
+    ui.setReducedMotion(on);
+  };
+  applyReducedMotion();
+  motionQuery?.addEventListener('change', (e) => {
+    osReduced = e.matches;
+    applyReducedMotion();
+  });
 
   /** 이번 판의 결과 (게임 오버 이벤트에서 채움). 제출은 flow.claimSubmit()으로 판당 1회. */
   const result = { score: 0, floors: 0, maxCombo: 0 };
@@ -59,13 +76,16 @@ if (canvas instanceof HTMLCanvasElement) {
     audio.onEvent(ev);
     if (ev.type === 'perfect') {
       ui.flashPerfect(ev.combo);
+    } else if (ev.type === 'milestone') {
+      ui.flashMilestone(ev.floors);
     } else if (ev.type === 'gameOver' && flow.endGame()) {
       result.score = ev.score;
       result.floors = ev.floors;
       result.maxCombo = ev.maxCombo;
-      best.submit(ev.score);
+      const isNewBest = best.submit(ev.score);
       ui.setPhase('gameOver');
-      ui.showGameOver({ score: ev.score, best: best.value }, nickname.value);
+      ui.showGameOver({ score: ev.score, best: best.value, isNewBest }, nickname.value);
+      ui.setTitleBest(best.value);
       refreshBoard(null);
     }
   };
@@ -108,8 +128,14 @@ if (canvas instanceof HTMLCanvasElement) {
   });
   window.addEventListener('keydown', (e) => {
     audio.unlock();
+    if (flow.optionsOpen && e.code === 'Escape') {
+      closeOptions();
+      return;
+    }
+    if (flow.optionsOpen && e.code === 'Tab') trapTab(e);
     if (isTextTarget(e.target)) return; // 닉네임 입력 중에는 스페이스/M이 게임으로 새지 않는다
     if (e.code === 'KeyM' && !e.repeat) toggleMute();
+    if (flow.optionsOpen) return; // 옵션이 열려 있는 동안 Space 등 게임 입력은 무시 (flow.tap()도 막는다)
     // 포커스된 버튼(retry/Submit/Sound)의 Space/Enter는 각 버튼의 click/submit 핸들러만 처리한다.
     // keydown까지 게임 입력으로 처리하면 이중 처리된다(재시작 직후 drop, 점수 미제출, 음소거+drop).
     if (e.target instanceof HTMLElement && e.target.closest('button')) return;
@@ -118,6 +144,74 @@ if (canvas instanceof HTMLCanvasElement) {
       if (!e.repeat) onTap();
     }
   });
+
+  // ---- 옵션 패널 ----
+  // 패널(#options)은 data-ui라서 안쪽/바깥 클릭이 pointerdown 게임 입력으로 새지 않고, flow.optionsOpen이 tap()도 막는다.
+  const resetGate = new ConfirmGate(UI_CONFIG.resetConfirmMs);
+  let resetTimer: ReturnType<typeof setTimeout> | null = null;
+  const cancelReset = (): void => {
+    resetGate.cancel();
+    if (resetTimer !== null) clearTimeout(resetTimer);
+    resetTimer = null;
+    ui.setResetArmed(false);
+  };
+  const openOptions = (): void => {
+    if (!flow.openOptions()) return;
+    ui.setOptionsOpen(true);
+    ui.optClose.focus();
+  };
+  const closeOptions = (): void => {
+    if (!flow.optionsOpen) return;
+    cancelReset();
+    flow.closeOptions();
+    ui.setOptionsOpen(false);
+    // 열었던 버튼에 포커스가 남아 Space가 다시 열지 않게
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+  };
+  /** Tab 포커스를 패널 안에서 순환시킨다. */
+  const trapTab = (e: KeyboardEvent): void => {
+    const items = ui.optionsPanel.querySelectorAll<HTMLElement>('button, input');
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (!first || !last) return;
+    const active = document.activeElement;
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    } else if (!(active instanceof Node) || !ui.optionsPanel.contains(active)) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  ui.optionsButton.addEventListener('click', openOptions);
+  ui.optClose.addEventListener('click', closeOptions);
+  ui.optSound.addEventListener('click', () => toggleMute());
+  ui.optBgm.addEventListener('click', () => audio.setBgmOn(!audio.getSettings().bgmOn));
+  ui.optSfx.addEventListener('click', () => audio.setSfxOn(!audio.getSettings().sfxOn));
+  ui.optBgmVol.addEventListener('input', () => audio.setBgmVolume(Number(ui.optBgmVol.value) / 100));
+  ui.optSfxVol.addEventListener('input', () => audio.setSfxVolume(Number(ui.optSfxVol.value) / 100));
+  ui.optReduced.addEventListener('click', () => {
+    manualReduced = !manualReduced;
+    rmStore.save(manualReduced);
+    applyReducedMotion();
+  });
+  ui.optReset.addEventListener('click', () => {
+    if (resetGate.press(performance.now()) === 'armed') {
+      ui.setResetArmed(true);
+      if (resetTimer !== null) clearTimeout(resetTimer);
+      resetTimer = setTimeout(cancelReset, UI_CONFIG.resetConfirmMs);
+      return;
+    }
+    cancelReset();
+    resetUserData(best, nickname);
+    ui.setTitleBest(best.value);
+    ui.refreshAfterReset();
+  });
+  audio.onSettingsChange((s) => ui.syncAudio(s));
 
   const toggleMute = (): void => {
     ui.setMuted(audio.toggleMute());
@@ -176,6 +270,7 @@ if (canvas instanceof HTMLCanvasElement) {
     logic.consumeEvents(onEvent);
     flow.update(dt);
     ui.setScore(logic.score);
+    ui.setHudBest(hudBest(best.value, logic.score));
     renderer.update(dt);
     renderer.render();
     requestAnimationFrame(frame);

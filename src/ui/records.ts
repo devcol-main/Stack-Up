@@ -50,6 +50,12 @@ export class BestScore {
     write(this.storage, this.key, String(this.best));
     return true;
   }
+
+  /** 최고 기록을 0으로 되돌린다(저장값도 0). */
+  reset(): void {
+    this.best = 0;
+    write(this.storage, this.key, '0');
+  }
 }
 
 export class NicknameStore {
@@ -70,5 +76,11 @@ export class NicknameStore {
   save(nick: string): void {
     this.nick = nick.slice(0, this.maxLength);
     write(this.storage, this.key, this.nick);
+  }
+
+  /** 저장된 닉네임을 지운다. */
+  clear(): void {
+    this.nick = '';
+    write(this.storage, this.key, '');
   }
 }

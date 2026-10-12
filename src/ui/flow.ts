@@ -9,6 +9,8 @@ export class GameFlow {
   submitted = false;
   /** 판 번호. 비동기 결과(리더보드 조회)가 이전 판 것인지 구별하는 데 쓴다. */
   round = 0;
+  /** 옵션 패널이 열려 있는가. 열린 동안 tap()은 아무것도 하지 않는다. */
+  optionsOpen = false;
   private sinceOver = 0;
 
   constructor(private readonly inputLockSec: number) {}
@@ -22,6 +24,7 @@ export class GameFlow {
    * 게임 오버 직후 잠금 시간 동안은 'none'.
    */
   tap(): TapAction {
+    if (this.optionsOpen) return 'none';
     switch (this.phase) {
       case 'title':
         this.phase = 'playing';
@@ -35,6 +38,17 @@ export class GameFlow {
         this.submitted = false;
         return 'retry';
     }
+  }
+
+  /** 옵션 패널 열기. 플레이 중에는 거부(false). */
+  openOptions(): boolean {
+    if (this.phase === 'playing') return false;
+    this.optionsOpen = true;
+    return true;
+  }
+
+  closeOptions(): void {
+    this.optionsOpen = false;
   }
 
   /** core의 gameOver 이벤트에서 호출. 플레이 중일 때만 전이한다. */

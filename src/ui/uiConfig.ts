@@ -12,5 +12,8 @@ export const UI_CONFIG = {
   fontSpec: '800 16px Geist',
   bestKey: 'stackup.best',
   nicknameKey: 'stackup.nickname',
+  reducedMotionKey: 'stackup.reducedMotion',
+  /** 데이터 초기화 확인 대기 시간(ms). 지나면 첫 단계로 돌아간다. */
+  resetConfirmMs: 3000,
   leaderboardKey: 'stackup.leaderboard',
 } as const;

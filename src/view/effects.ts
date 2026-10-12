@@ -16,10 +16,15 @@ export interface Particle {
   colorIndex: number;
 }
 
+/** Perfect 사각형 파동. x = 블록 중심(월드), w = 블록 폭(정규화), y = 블록 윗면 기준 층 번호(level). */
 export interface Ring {
   active: boolean;
   x: number;
   y: number;
+  w: number;
+  /** 한쪽 최대 가로 확장 (플레이 폭 비율), reduced scale 적용 전. */
+  grow: number;
+  combo: number;
   t: number;
   dur: number;
   scale: number;
@@ -38,6 +43,15 @@ export interface Flash {
   colorIndex: number;
 }
 
+export interface MilestoneFlash {
+  active: boolean;
+  t: number;
+  dur: number;
+  /** 최고 알파 (reduced motion 반영 후). */
+  peak: number;
+  colorIndex: number;
+}
+
 export interface Shake {
   elapsed: number;
   duration: number;
@@ -51,6 +65,36 @@ export interface Shake {
 export function easeOutCubic(t: number): number {
   const k = 1 - t;
   return 1 - k * k * k;
+}
+
+/** 사각형 파동 한쪽 최대 가로 확장 (플레이 폭 비율). 콤보가 클수록 크고 상한 있음. */
+export function waveMaxGrow(w: number, combo: number): number {
+  const c = VIEW_CONFIG;
+  return Math.min(c.ringGrowMax, w * (c.ringGrowBase + Math.max(0, combo) * c.ringGrowPerCombo));
+}
+
+/**
+ * 파동 최대 가로 확장(px)을 화면 안으로 제한. 좌우 어느 쪽이든 margin만큼 화면 안에 남게 한다.
+ * 블록이 가장자리에 붙어 여유가 없으면 minGrow는 보장한다 (파동이 완전히 사라지지 않게).
+ */
+export function clampWaveGrow(desired: number, blockLeft: number, blockW: number, screenW: number, margin: number, minGrow: number): number {
+  const room = Math.min(blockLeft, screenW - (blockLeft + blockW)) - margin;
+  return Math.min(desired, Math.max(minGrow, room));
+}
+
+/** 파동 진행 p(0..1)에서의 확장 비율 (0..1). */
+export function waveProgress(t: number, dur: number): number {
+  return easeOutCubic(Math.min(1, Math.max(0, t / dur)));
+}
+
+/** 마일스톤 플래시 알파: 빠르게 올라갔다 0까지 감쇠. dur 이후 0. */
+export function milestoneFlashAlpha(t: number, dur: number, peak: number): number {
+  if (dur <= 0 || t < 0 || t >= dur) return 0;
+  const p = t / dur;
+  const rise = VIEW_CONFIG.milestoneFlashRise;
+  if (p < rise) return peak * (p / rise);
+  const k = (1 - p) / (1 - rise);
+  return peak * k * k;
 }
 
 /** 흔들림 한 축의 오프셋. 시간이 지나면 제곱으로 감쇠하고 duration 이후 0. */
@@ -89,6 +133,8 @@ export class Effects {
   readonly particles: Particle[] = [];
   readonly rings: Ring[] = [];
   readonly flashes: Flash[] = [];
+  readonly milestone: MilestoneFlash = { active: false, t: 0, dur: 1, peak: 0, colorIndex: 0 };
+  private milestoneCount = 0;
   readonly shake: Shake = { elapsed: 0, duration: 0, amp: 0, x: 0, y: 0 };
   /** true면 흔들림 없음, 입자/링 축소. */
   reducedMotion = false;
@@ -99,7 +145,7 @@ export class Effects {
       this.particles.push({ active: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, colorIndex: 0 });
     }
     for (let i = 0; i < Math.max(1, c.ringPoolSize); i++) {
-      this.rings.push({ active: false, x: 0, y: 0, t: 0, dur: 1, scale: 1, colorIndex: 0 });
+      this.rings.push({ active: false, x: 0, y: 0, w: 0, grow: 0, combo: 0, t: 0, dur: 1, scale: 1, colorIndex: 0 });
     }
     for (let i = 0; i < Math.max(1, c.flashPoolSize); i++) {
       this.flashes.push({ active: false, x: 0, w: 0, level: 0, t: 0, dur: 1, grow: 0, colorIndex: 0 });
@@ -135,7 +181,10 @@ export class Effects {
     const r = acquire(this.rings, ringAge);
     r.active = true;
     r.x = x + w / 2;
-    r.y = level - 0.5;
+    r.y = level;
+    r.w = w;
+    r.grow = waveMaxGrow(w, combo);
+    r.combo = combo;
     r.t = 0;
     r.dur = c.ringDuration;
     r.scale = this.reducedMotion ? c.reducedRingScale : 1;
@@ -163,6 +212,17 @@ export class Effects {
       const p = this.newParticle(left ? x : x + w, level - 0.5, colorIndex);
       p.vx = (left ? -1 : 1) * (0.2 + this.random() * VIEW_CONFIG.particleSpeedX * 0.6);
     }
+  }
+
+  /** 마일스톤: 배경 색 플래시. 층마다 색을 번갈아 쓴다. reduced motion이면 약하고 짧게. */
+  spawnMilestone(): void {
+    const c = VIEW_CONFIG;
+    const m = this.milestone;
+    m.active = true;
+    m.t = 0;
+    m.dur = c.milestoneFlashDuration * (this.reducedMotion ? c.reducedFlashDurScale : 1);
+    m.peak = c.milestoneFlashAlpha * (this.reducedMotion ? c.reducedFlashAlphaScale : 1);
+    m.colorIndex = this.milestoneCount++ % c.milestoneFlashColors.length;
   }
 
   /** 게임 오버 흔들림. reduced motion이면 무시. */
@@ -208,6 +268,11 @@ export class Effects {
       f.t += dt;
       if (f.t >= f.dur) f.active = false;
     }
+    const m = this.milestone;
+    if (m.active) {
+      m.t += dt;
+      if (m.t >= m.dur) m.active = false;
+    }
     const s = this.shake;
     if (s.elapsed < s.duration) {
       s.elapsed += dt;
@@ -223,6 +288,8 @@ export class Effects {
     for (let i = 0; i < this.particles.length; i++) this.particles[i]!.active = false;
     for (let i = 0; i < this.rings.length; i++) this.rings[i]!.active = false;
     for (let i = 0; i < this.flashes.length; i++) this.flashes[i]!.active = false;
+    this.milestone.active = false;
+    this.milestoneCount = 0;
     const s = this.shake;
     s.elapsed = 0;
     s.duration = 0;

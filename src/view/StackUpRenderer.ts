@@ -2,7 +2,7 @@ import type { StackUpEvent, StackUpLogic } from '../core/StackUpLogic';
 import { Effects } from './effects';
 import { GlowSprites } from './glowSprites';
 import { BackgroundLayer, BlocksLayer, GridLayer, PiecesLayer, RenderPhase, type FrameContext, type RenderLayer } from './layers';
-import { EffectsLayer, StarsLayer } from './fxLayers';
+import { EffectsLayer, MilestoneFlashLayer, StarsLayer } from './fxLayers';
 import { cameraTarget, computeLayout, stepCamera } from './layout';
 import { PiecePool } from './pieces';
 import { createRng } from '../core/rng';
@@ -59,6 +59,7 @@ export class StackUpRenderer {
     this.addLayer(new BackgroundLayer());
     this.addLayer(new StarsLayer(createRng(VIEW_CONFIG.starSeed)));
     this.addLayer(new GridLayer());
+    this.addLayer(new MilestoneFlashLayer());
     this.addLayer(new BlocksLayer());
     this.addLayer(new PiecesLayer());
     this.addLayer(new EffectsLayer());
@@ -113,6 +114,8 @@ export class StackUpRenderer {
       this.effects.spawnPerfect(this.landX, this.landW, e.level, this.colorAt(e.level), e.combo);
     } else if (e.type === 'regrow') {
       this.effects.spawnRegrow(this.landX, this.landW, e.level, e.amount, this.colorAt(e.level));
+    } else if (e.type === 'milestone') {
+      this.effects.spawnMilestone();
     } else if (e.type === 'gameOver') {
       this.effects.startShake();
       const vr = (this.random() - 0.5) * VIEW_CONFIG.dropSpin;

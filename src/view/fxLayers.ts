@@ -3,7 +3,7 @@ import type { FrameContext, RenderLayer } from './layers';
 import { RenderPhase } from './layers';
 import { levelToY, worldToScreenW, worldToScreenX } from './layout';
 import { BLOCK_STYLES } from './palette';
-import { easeOutCubic } from './effects';
+import { clampWaveGrow, easeOutCubic, milestoneFlashAlpha, waveProgress } from './effects';
 import { StarField } from './stars';
 import { VIEW_CONFIG } from './viewConfig';
 
@@ -38,8 +38,46 @@ export class StarsLayer implements RenderLayer {
   }
 }
 
+/** 마일스톤 배경 플래시. 블록 아래(그리드 위)에 낮은 알파로 깔아 블록이 가려지지 않는다. */
+export const MILESTONE_FLASH_PHASE = RenderPhase.Grid + 50;
+
+export class MilestoneFlashLayer implements RenderLayer {
+  readonly phase = MILESTONE_FLASH_PHASE;
+
+  draw({ ctx, layout, effects }: FrameContext): void {
+    const m = effects.milestone;
+    if (!m.active) return;
+    const a = milestoneFlashAlpha(m.t, m.dur, m.peak);
+    if (a <= 0) return;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = VIEW_CONFIG.milestoneFlashColors[m.colorIndex % VIEW_CONFIG.milestoneFlashColors.length]!;
+    // 화면 흔들림 오프셋이 있어도 가장자리가 비지 않도록 여유를 둔다.
+    const b = VIEW_CONFIG.milestoneFlashBleed;
+    ctx.fillRect(-b, -b, layout.cssW + b * 2, layout.cssH + b * 2);
+    ctx.globalAlpha = 1;
+  }
+}
+
 export class EffectsLayer implements RenderLayer {
   readonly phase = RenderPhase.Effects;
+  /** roundRect 지원 여부 (구형 Safari 대비, 한 번만 판정). */
+  private readonly hasRoundRect =
+    typeof CanvasRenderingContext2D !== 'undefined' && typeof CanvasRenderingContext2D.prototype.roundRect === 'function';
+
+  /** roundRect가 없으면 arcTo로 같은 경로를 만든다 (할당 없음). */
+  private rectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r0: number): void {
+    if (this.hasRoundRect) {
+      ctx.roundRect(x, y, w, h, r0);
+      return;
+    }
+    const r = Math.max(0, Math.min(r0, w / 2, h / 2));
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
 
   draw({ ctx, layout, cam, effects }: FrameContext): void {
     const c = VIEW_CONFIG;
@@ -73,19 +111,27 @@ export class EffectsLayer implements RenderLayer {
       }
     }
 
-    // 링 파동 (바닥 면에 퍼지는 것처럼 세로로 눌린 타원)
+    // Perfect 사각형 파동: 블록 외곽에서 사방으로 퍼지는 둥근 사각형 선 (알파만, shadowBlur 없음)
     const rings = effects.rings;
     for (let i = 0; i < rings.length; i++) {
       const r = rings[i]!;
       if (!r.active) continue;
       const p = r.t / r.dur;
-      const rx = layout.playW * c.ringRadius * r.scale * easeOutCubic(p);
-      if (rx < 0.5) continue;
-      ctx.globalAlpha = (1 - p) * 0.9;
-      ctx.lineWidth = c.ringLineWidth * (1 - p * 0.6);
-      ctx.strokeStyle = BLOCK_STYLES[r.colorIndex % BLOCK_STYLES.length]!.stroke;
+      const e = waveProgress(r.t, r.dur);
+      const bx = worldToScreenX(layout, r.x - r.w / 2);
+      const bw = worldToScreenW(layout, r.w);
+      const gxMax = clampWaveGrow(
+        layout.playW * r.grow * r.scale, bx, bw, layout.cssW, c.ringScreenMargin, bh * c.ringMinGrowBlocks,
+      );
+      const gx = gxMax * e;
+      const gy = Math.min(c.ringGrowYMax * bh, gx * c.ringGrowYRatio);
+      const inset = bh * c.blockInset;
+      const by = levelToY(layout, r.y, cam) + inset;
+      ctx.globalAlpha = (1 - p) * c.ringAlpha;
+      ctx.lineWidth = c.ringLineWidth * (1 - p * (1 - c.ringLineEnd));
+      ctx.strokeStyle = r.combo >= c.ringCyanCombo ? c.ringCyan : BLOCK_STYLES[r.colorIndex % BLOCK_STYLES.length]!.stroke;
       ctx.beginPath();
-      ctx.ellipse(worldToScreenX(layout, r.x), levelToY(layout, r.y, cam), rx, rx * c.ringSquash, 0, 0, Math.PI * 2);
+      this.rectPath(ctx, bx - gx, by - gy, bw + gx * 2, bh - inset * 2 + gy * 2, bh * c.ringCorner);
       ctx.stroke();
     }
 

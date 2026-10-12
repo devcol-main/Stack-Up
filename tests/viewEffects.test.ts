@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../src/core/rng';
-import { Effects, easeOutCubic, gridFlickerAlpha, shakeOffset } from '../src/view/effects';
+import { Effects, clampWaveGrow, easeOutCubic, gridFlickerAlpha, milestoneFlashAlpha, shakeOffset, waveMaxGrow, waveProgress } from '../src/view/effects';
 import { StarField, wrap01 } from '../src/view/stars';
 import { VIEW_CONFIG } from '../src/view/viewConfig';
 
@@ -184,5 +184,116 @@ describe('Effects', () => {
     fx.clear();
     expect(fx.activeParticles + fx.activeRings + fx.activeFlashes).toBe(0);
     expect(fx.shake.x).toBe(0);
+  });
+});
+
+describe('perfect rectangle wave', () => {
+  it('wave rect starts at the block position and size and keeps its center', () => {
+    const fx = make();
+    fx.spawnPerfect(0.1, 0.8, 3, 0, 1);
+    const r = fx.rings.find((x) => x.active)!;
+    expect(r.w).toBeCloseTo(0.8);
+    expect(r.x).toBeCloseTo(0.5);
+    expect(r.y).toBe(3);
+  });
+
+  it('wave progress grows monotonically from 0 to 1 over its life', () => {
+    const dur = VIEW_CONFIG.ringDuration;
+    expect(waveProgress(0, dur)).toBe(0);
+    expect(waveProgress(0.4 * dur, dur)).toBeGreaterThan(waveProgress(0.1 * dur, dur));
+    expect(waveProgress(dur, dur)).toBeCloseTo(1);
+  });
+
+  it('ring deactivates once its duration has passed', () => {
+    const fx = make();
+    fx.spawnPerfect(0.1, 0.8, 3, 0, 1);
+    fx.update(VIEW_CONFIG.ringDuration + 0.01);
+    expect(fx.activeRings).toBe(0);
+  });
+
+  it('narrow screen keeps all four sides of the wave inside the screen', () => {
+    const screenW = 360;
+    const margin = VIEW_CONFIG.ringScreenMargin;
+    const bw = 0.8 * screenW;
+    const bx = (screenW - bw) / 2;
+    const gx = clampWaveGrow(waveMaxGrow(0.8, 0) * screenW * 10, bx, bw, screenW, margin, 5);
+    expect(bx - gx).toBeGreaterThanOrEqual(margin - 1e-9);
+    expect(bx + bw + gx).toBeLessThanOrEqual(screenW - margin + 1e-9);
+  });
+
+  it('block hugging the screen edge still gets the minimum growth', () => {
+    expect(clampWaveGrow(100, 0, 300, 360, 4, 11)).toBe(11);
+  });
+
+  it('higher combo grows larger within the screen limit', () => {
+    const screenW = 360;
+    const bw = 0.5 * screenW;
+    const bx = (screenW - bw) / 2;
+    const g = (combo: number): number =>
+      clampWaveGrow(waveMaxGrow(0.5, combo) * screenW, bx, bw, screenW, 4, 5);
+    expect(g(6)).toBeGreaterThan(g(0));
+    expect(g(1000)).toBeLessThanOrEqual(bx - 4 + 1e-9);
+  });
+
+  it('higher combo gives a larger wave but never beyond the cap', () => {
+    expect(waveMaxGrow(0.8, 6)).toBeGreaterThan(waveMaxGrow(0.8, 1));
+    expect(waveMaxGrow(1, 1000)).toBe(VIEW_CONFIG.ringGrowMax);
+    expect(waveMaxGrow(0.8, 0)).toBeCloseTo(0.8 * VIEW_CONFIG.ringGrowBase);
+  });
+
+  it('reduced motion shrinks the wave scale', () => {
+    const full = make();
+    const red = make(true);
+    full.spawnPerfect(0, 0.5, 1, 0, 2);
+    red.spawnPerfect(0, 0.5, 1, 0, 2);
+    expect(red.rings.find((x) => x.active)!.scale).toBeLessThan(full.rings.find((x) => x.active)!.scale);
+  });
+
+  it('a full ring pool reuses a slot instead of growing', () => {
+    const fx = make();
+    const n = fx.rings.length;
+    for (let i = 0; i < n + 5; i++) fx.spawnPerfect(0, 0.5, i, 0, 1);
+    expect(fx.rings.length).toBe(n);
+    expect(fx.activeRings).toBe(n);
+  });
+});
+
+describe('milestone background flash', () => {
+  it('alpha rises to the peak then decays to zero at the end of its life', () => {
+    const peak = 0.2;
+    const dur = 0.6;
+    const rise = VIEW_CONFIG.milestoneFlashRise * dur;
+    expect(milestoneFlashAlpha(0, dur, peak)).toBe(0);
+    expect(milestoneFlashAlpha(rise, dur, peak)).toBeCloseTo(peak);
+    expect(milestoneFlashAlpha(dur * 0.5, dur, peak)).toBeLessThan(peak);
+    expect(milestoneFlashAlpha(dur * 0.8, dur, peak)).toBeLessThan(milestoneFlashAlpha(dur * 0.5, dur, peak));
+    expect(milestoneFlashAlpha(dur, dur, peak)).toBe(0);
+  });
+
+  it('flash deactivates after its duration and alternates colors', () => {
+    const fx = make();
+    fx.spawnMilestone();
+    const c0 = fx.milestone.colorIndex;
+    expect(fx.milestone.active).toBe(true);
+    fx.update(fx.milestone.dur + 0.01);
+    expect(fx.milestone.active).toBe(false);
+    fx.spawnMilestone();
+    expect(fx.milestone.colorIndex).not.toBe(c0);
+  });
+
+  it('reduced motion makes the flash weaker and shorter', () => {
+    const full = make();
+    const red = make(true);
+    full.spawnMilestone();
+    red.spawnMilestone();
+    expect(red.milestone.peak).toBeLessThan(full.milestone.peak);
+    expect(red.milestone.dur).toBeLessThan(full.milestone.dur);
+  });
+
+  it('clear cancels an active flash', () => {
+    const fx = make();
+    fx.spawnMilestone();
+    fx.clear();
+    expect(fx.milestone.active).toBe(false);
   });
 });

@@ -76,11 +76,26 @@ export const VIEW_CONFIG = {
   /** 폭 회복 연출 지속(초). 흰색 외곽선이 이전 폭에서 새 폭으로 늘어난다. */
   regrowDuration: 0.5,
   regrowParticles: 10,
-  /** Perfect 링: 지속(초), 최대 가로 반지름(플레이 폭 비율), 세로 압축, 선 굵기(px). */
-  ringDuration: 0.55,
-  ringRadius: 0.55,
-  ringSquash: 0.3,
-  ringLineWidth: 2.5,
+  /** Perfect 사각형 파동: 지속(초), 선 굵기(px, 시작 -> 끝에서 lineEnd 배). */
+  ringDuration: 0.6,
+  ringLineWidth: 3,
+  ringLineEnd: 0.3,
+  ringAlpha: 0.9,
+  /** 한쪽 가로 확장량(플레이 폭 비율) = 블록 폭 * (base + combo * perCombo), 상한 max (플레이 폭 비율). */
+  ringGrowBase: 0.45,
+  ringGrowPerCombo: 0.04,
+  ringGrowMax: 0.7,
+  /** 세로 확장 = 가로 확장(px) * 이 값 (blockH 상한 ringGrowYMax). */
+  ringGrowYRatio: 0.5,
+  ringGrowYMax: 5,
+  /** 파동이 화면 가장자리에서 남겨둘 여백(px)과, 블록이 가장자리에 붙어도 보장하는 최소 확장(blockH 비율). */
+  ringScreenMargin: 4,
+  ringMinGrowBlocks: 0.5,
+  /** 파동 모서리 둥글기 (blockH 비율). */
+  ringCorner: 0.35,
+  /** 콤보가 이 값 이상이면 블록 색 대신 시안으로 그린다. */
+  ringCyanCombo: 3,
+  ringCyan: '#33E1FF',
   /** Perfect 입자 수 = base + combo * perCombo (상한 max). */
   perfectParticlesBase: 8,
   perfectParticlesPerCombo: 2,
@@ -97,6 +112,16 @@ export const VIEW_CONFIG = {
   /** reduced motion: 입자 수 배율, 링 크기 배율. */
   reducedParticleScale: 0.25,
   reducedRingScale: 0.5,
+  /** 마일스톤 배경 플래시: 지속(초), 최고 알파, 올라가는 구간 비율, 색 순환(층마다 번갈아). */
+  milestoneFlashDuration: 0.6,
+  milestoneFlashAlpha: 0.22,
+  milestoneFlashRise: 0.12,
+  milestoneFlashColors: ['#FF3CC8', '#33E1FF'],
+  /** 플래시 사각형이 화면 밖으로 더 나가는 여유(px, 화면 흔들림 대비). */
+  milestoneFlashBleed: 32,
+  /** reduced motion: 알파 배율, 지속 배율. */
+  reducedFlashAlphaScale: 0.4,
+  reducedFlashDurScale: 0.6,
   /** 게임 오버 화면 흔들림: 지속(초), 진폭(blockH), 주파수(Hz). */
   shakeDuration: 0.35,
   shakeAmplitude: 0.45,

@@ -12,10 +12,22 @@ import { waitForFont } from './ui/fonts';
 import { UI_CONFIG } from './ui/uiConfig';
 import './ui/ui.css';
 
+declare global {
+  interface Window {
+    /** 개발 모드 전용 (캡처 스크립트용). 프로덕션 번들에는 없다. */
+    __stackUp?: { logic: StackUpLogic };
+  }
+}
+
 const canvas = document.getElementById('game');
 if (canvas instanceof HTMLCanvasElement) {
   const storage = browserStorage();
-  const logic = new StackUpLogic(createRng(Date.now()));
+  // 개발 모드 전용: ?seed=<n> 으로 시드 고정 (README 미디어 캡처용). 프로덕션에서는 항상 Date.now().
+  const devSeedParam = import.meta.env.DEV ? new URLSearchParams(location.search).get('seed') : null;
+  const devSeed = devSeedParam !== null && devSeedParam !== '' ? Number(devSeedParam) : NaN;
+  const logic = new StackUpLogic(createRng(Number.isFinite(devSeed) ? devSeed : Date.now()));
+  // 개발 모드 전용: 캡처 스크립트(scripts/capture-media.mjs)가 상태를 읽는 훅. 프로덕션 번들에는 남지 않는다.
+  if (import.meta.env.DEV) window.__stackUp = { logic };
   const motionQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
   const rmStore = new ReducedMotionStore(storage, UI_CONFIG.reducedMotionKey);
   // 축소 모드 = OS 설정 OR 수동 설정. 둘 중 하나가 바뀔 때마다 applyReducedMotion으로 view와 UI에 함께 반영한다.

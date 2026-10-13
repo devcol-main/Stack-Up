@@ -83,6 +83,14 @@ export class StackUpUi {
       this.board.append(li);
       this.rows.push({ li, rank, name, pts });
     }
+    // 로고 로드 실패 시 깨진 이미지/alt 텍스트 대신 숨긴다(게임 동작과 무관)
+    for (const img of Array.from(this.root.querySelectorAll<HTMLImageElement>('.brand-logo'))) {
+      const hide = (): void => {
+        img.hidden = true;
+      };
+      img.addEventListener('error', hide);
+      if (img.complete && img.naturalWidth === 0) hide();
+    }
     this.emptyRow = document.createElement('li');
     this.emptyRow.className = 'empty';
     this.emptyRow.textContent = 'No scores yet';

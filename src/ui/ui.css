@@ -97,6 +97,13 @@
 .ui[data-phase='title'] .score, .ui[data-phase='title'] .logo, .ui[data-phase='gameOver'] .score { display: none; }
 
 .title-screen { justify-content: center; padding-bottom: calc(var(--u) * 20); text-align: center; }
+/* 로고는 검정이라 어두운 배경에서 안 보인다: invert로 검정→흰색, hue-rotate(180)로 반전된 청록을 다시 빨강 계열로 되돌린다 */
+.brand-logo { display: block; pointer-events: none; user-select: none; -webkit-user-drag: none; filter: invert(1) hue-rotate(180deg); }
+.brand-logo[hidden] { display: none; }
+.title-logo { width: calc(var(--u) * 26); height: calc(var(--u) * 26); margin-bottom: 0; }
+.over-logo { width: calc(var(--u) * 10); height: calc(var(--u) * 10); margin-bottom: calc(var(--u) * 1); }
+@media (max-height: 640px) { .over-logo { display: none; } }
+@media (max-height: 520px) { .title-logo { width: calc(var(--u) * 14); height: calc(var(--u) * 14); margin-bottom: 0; } }
 .title { margin: 0; font-size: calc(var(--u) * 13); letter-spacing: 0.04em; color: #fff;
   text-shadow: 0 0 calc(var(--u) * 2) #ff3cc8, 0 0 calc(var(--u) * 6) #ff3cc8; }
 .tap-hint { margin: calc(var(--u) * 8) 0 0; font-size: calc(var(--u) * 5); color: #ff7ad9; animation: blink 1.4s ease-in-out infinite; }

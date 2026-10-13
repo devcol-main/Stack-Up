@@ -32,10 +32,12 @@
 .col { position: relative; width: calc(var(--u) * 100); height: 100%; }
 
 /* HUD: HTML 오버레이 + CSS text-shadow. 값이 바뀔 때만 DOM을 갱신하므로 글로우 비용은 변경 시점에만 든다. */
-.logo {
-  position: absolute; left: calc(var(--u) * 5); top: calc(var(--u) * 5 + env(safe-area-inset-top, 0px));
-  font-size: calc(var(--u) * 4.2); letter-spacing: 0.04em; color: #ff7ad9;
+/* 좌상단 브랜드: 로고(모든 화면) + 플레이 중 STACK UP 문구. 입력은 가로채지 않는다. */
+.brand {
+  position: absolute; left: calc(var(--u) * 4 + env(safe-area-inset-left, 0px)); top: calc(var(--u) * 3 + env(safe-area-inset-top, 0px));
+  display: flex; align-items: center; gap: calc(var(--u) * 1.5); pointer-events: none; z-index: 1;
 }
+.logo { font-size: calc(var(--u) * 4.2); letter-spacing: 0.04em; color: #ff7ad9; white-space: nowrap; }
 .score {
   position: absolute; left: 0; right: 0; top: calc(var(--u) * 14);
   text-align: center; font-size: calc(var(--u) * 16); line-height: 1;
@@ -97,13 +99,9 @@
 .ui[data-phase='title'] .score, .ui[data-phase='title'] .logo, .ui[data-phase='gameOver'] .score { display: none; }
 
 .title-screen { justify-content: center; padding-bottom: calc(var(--u) * 20); text-align: center; }
-/* 로고는 검정이라 어두운 배경에서 안 보인다: invert로 검정→흰색, hue-rotate(180)로 반전된 청록을 다시 빨강 계열로 되돌린다 */
-.brand-logo { display: block; pointer-events: none; user-select: none; -webkit-user-drag: none; filter: invert(1) hue-rotate(180deg); }
+/* 어두운 배경용 변형 PNG(devcol-logo-dark.png)를 그대로 쓴다. 필터 없음. */
+.brand-logo { display: block; width: calc(var(--u) * 10); height: calc(var(--u) * 10); pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .brand-logo[hidden] { display: none; }
-.title-logo { width: calc(var(--u) * 26); height: calc(var(--u) * 26); margin-bottom: 0; }
-.over-logo { width: calc(var(--u) * 10); height: calc(var(--u) * 10); margin-bottom: calc(var(--u) * 1); }
-@media (max-height: 640px) { .over-logo { display: none; } }
-@media (max-height: 520px) { .title-logo { width: calc(var(--u) * 14); height: calc(var(--u) * 14); margin-bottom: 0; } }
 .title { margin: 0; font-size: calc(var(--u) * 13); letter-spacing: 0.04em; color: #fff;
   text-shadow: 0 0 calc(var(--u) * 2) #ff3cc8, 0 0 calc(var(--u) * 6) #ff3cc8; }
 .tap-hint { margin: calc(var(--u) * 8) 0 0; font-size: calc(var(--u) * 5); color: #ff7ad9; animation: blink 1.4s ease-in-out infinite; }
@@ -114,7 +112,7 @@
 .title-best[hidden] { display: none; }
 
 .over-screen { background: rgba(5, 0, 12, 0.72); justify-content: center; justify-content: safe center; box-sizing: border-box; text-align: center;
-  padding: calc(var(--u) * 4 + env(safe-area-inset-top, 0px)) calc(var(--u) * 6) calc(var(--u) * 4 + env(safe-area-inset-bottom, 0px)); }
+  padding: calc(var(--u) * 14 + env(safe-area-inset-top, 0px)) calc(var(--u) * 6) calc(var(--u) * 4 + env(safe-area-inset-bottom, 0px)); }
 .over-screen > * { flex-shrink: 0; }
 .over-title { font-size: calc(var(--u) * 8); letter-spacing: 0.04em;
   text-shadow: 0 0 calc(var(--u) * 2) #ff3cc8, 0 0 calc(var(--u) * 5) #ff3cc8; }
@@ -161,6 +159,9 @@
 
 /* 작은 높이(가로 모바일, 작은 iframe): 여백과 보조 문구를 줄인다 */
 @media (max-height: 520px) {
+  .brand { top: calc(var(--u) * 2 + env(safe-area-inset-top, 0px)); }
+  .brand-logo { width: calc(var(--u) * 8); height: calc(var(--u) * 8); }
+  .over-screen { padding-top: calc(var(--u) * 11 + env(safe-area-inset-top, 0px)); }
   .collapsed { display: none; }
   .over-title { font-size: calc(var(--u) * 6); }
   .final-score { margin-top: 0; font-size: calc(var(--u) * 12); }
@@ -180,7 +181,7 @@
 }
 .ui[data-phase='playing'] .options-btn { display: none; }
 
-.options { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; align-items: safe center;
+.options { z-index: 2; position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; align-items: safe center;
   overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; box-sizing: border-box; background: rgba(5, 0, 12, 0.86);
   padding: calc(var(--u) * 4 + env(safe-area-inset-top, 0px)) calc(var(--u) * 5) calc(var(--u) * 4 + env(safe-area-inset-bottom, 0px)); }
 .options[hidden] { display: none; }

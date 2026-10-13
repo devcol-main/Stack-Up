@@ -15,7 +15,10 @@
 <canvas id="game" tabindex="-1"></canvas>
 <div id="ui" class="ui" data-phase="title">
   <div class="col">
-    <div class="logo">STACK UP</div>
+    <div class="brand">
+      <img class="brand-logo" src="./src/assets/devcol-logo-dark.png" alt="DevCol logo" width="256" height="256" draggable="false">
+      <div class="logo">STACK UP</div>
+    </div>
     <button id="mute" class="mute" type="button" data-ui aria-pressed="false">Sound: on</button>
     <div id="score" class="score">0</div>
     <div id="hud-best" class="hud-best" hidden>BEST 0</div>
@@ -23,7 +26,6 @@
     <div id="perfect" class="perfect" aria-live="off"></div>
 
     <section class="screen title-screen">
-      <img class="brand-logo title-logo" src="./src/assets/devcol-logo.png" alt="DevCol logo" width="256" height="256" draggable="false">
       <h1 class="title">STACK UP</h1>
       <div id="title-best" class="title-best" hidden>BEST 0</div>
       <p class="tap-hint">Tap to start</p>
@@ -31,7 +33,6 @@
     </section>
 
     <section class="screen over-screen">
-      <img class="brand-logo over-logo" src="./src/assets/devcol-logo.png" alt="DevCol logo" width="256" height="256" draggable="false">
       <div class="over-title">GAME OVER</div>
       <div id="final-score" class="final-score">0</div>
       <div id="best" class="best">BEST 0</div>

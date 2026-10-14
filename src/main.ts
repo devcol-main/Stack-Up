@@ -1,11 +1,12 @@
-import { LocalLeaderboardService, normalizeNickname, MAX_NICKNAME_LENGTH, type LeaderboardEntry, type LeaderboardService } from '../../../shared/leaderboard';
+import { type LeaderboardEntry, type LeaderboardService } from '../../../shared/leaderboard';
 import { createRng } from './core/rng';
 import { StackUpLogic, type StackUpEvent } from './core/StackUpLogic';
 import { AudioManager } from './audio/AudioManager';
 import { StackUpRenderer } from './view/StackUpRenderer';
 import { GameFlow } from './ui/flow';
 import { ConfirmGate, ReducedMotionStore, effectiveReducedMotion, hudBest, resetUserData } from './ui/options';
-import { BestScore, NicknameStore, browserStorage } from './ui/records';
+import { BestScore, browserStorage } from './ui/records';
+import { createPlayerProfile, createStackUpLeaderboard, nicknameToSubmit, type StackUpStats } from './ui/leaderboard';
 import { StackUpUi } from './ui/StackUpUi';
 import { FrameClock } from './ui/frameClock';
 import { waitForFont } from './ui/fonts';
@@ -39,8 +40,8 @@ if (canvas instanceof HTMLCanvasElement) {
   const flow = new GameFlow(UI_CONFIG.gameOverInputLockSec);
   const ui = new StackUpUi(UI_CONFIG.leaderboardSize);
   const best = new BestScore(storage, UI_CONFIG.bestKey);
-  const nickname = new NicknameStore(storage, UI_CONFIG.nicknameKey, MAX_NICKNAME_LENGTH);
-  const leaderboard: LeaderboardService = new LocalLeaderboardService(UI_CONFIG.leaderboardKey);
+  const profile = createPlayerProfile(storage);
+  let leaderboard: LeaderboardService<StackUpStats> = createStackUpLeaderboard();
   ui.setMuted(audio.isMuted());
   ui.syncAudio(audio.getSettings());
   ui.setTitleBest(best.value);
@@ -59,7 +60,7 @@ if (canvas instanceof HTMLCanvasElement) {
   /** 이번 판의 결과 (게임 오버 이벤트에서 채움). 제출은 flow.claimSubmit()으로 판당 1회. */
   const result = { score: 0, floors: 0, maxCombo: 0 };
 
-  const refreshBoard = (mine: LeaderboardEntry | null): void => {
+  const refreshBoard = (mine: LeaderboardEntry<StackUpStats> | null): void => {
     const round = flow.round;
     leaderboard.getTop(UI_CONFIG.leaderboardSize).then(
       (entries) => {
@@ -72,9 +73,15 @@ if (canvas instanceof HTMLCanvasElement) {
 
   const submitScore = (): void => {
     if (!flow.claimSubmit()) return;
-    const nick = normalizeNickname(ui.input.value);
-    nickname.save(nick);
-    const entry: LeaderboardEntry = { nickname: nick, score: result.score, floors: result.floors, maxCombo: result.maxCombo, ts: Date.now() };
+    const nick = nicknameToSubmit(ui.input.value, profile.nickname);
+    profile.setNickname(nick);
+    const entry: LeaderboardEntry<StackUpStats> = {
+      playerId: profile.playerId,
+      nickname: nick,
+      score: result.score,
+      stats: { floors: result.floors, maxCombo: result.maxCombo },
+      ts: Date.now(),
+    };
     ui.hideNickForm();
     leaderboard.submit(entry).then(
       () => refreshBoard(entry),
@@ -96,7 +103,7 @@ if (canvas instanceof HTMLCanvasElement) {
       result.maxCombo = ev.maxCombo;
       const isNewBest = best.submit(ev.score);
       ui.setPhase('gameOver');
-      ui.showGameOver({ score: ev.score, best: best.value, isNewBest }, nickname.value);
+      ui.showGameOver({ score: ev.score, best: best.value, isNewBest }, profile.nickname);
       ui.setTitleBest(best.value);
       refreshBoard(null);
     }
@@ -219,9 +226,11 @@ if (canvas instanceof HTMLCanvasElement) {
       return;
     }
     cancelReset();
-    resetUserData(best, nickname);
+    resetUserData({ best, storage, leaderboardKey: UI_CONFIG.leaderboardKey });
+    leaderboard = createStackUpLeaderboard(); // 메모리에 남은 기록도 비운다
     ui.setTitleBest(best.value);
     ui.refreshAfterReset();
+    if (flow.phase === 'gameOver') ui.renderBoard([], null);
   });
   audio.onSettingsChange((s) => ui.syncAudio(s));
 

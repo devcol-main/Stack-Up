@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ConfirmGate, ReducedMotionStore, effectiveReducedMotion, hudBest, milestoneText, resetUserData } from '../src/ui/options';
-import { BestScore, NicknameStore, type StorageLike } from '../src/ui/records';
+import { BestScore, type StorageLike } from '../src/ui/records';
 import { GameFlow } from '../src/ui/flow';
+import { createPlayerProfile, createStackUpLeaderboard } from '../src/ui/leaderboard';
+import { UI_CONFIG } from '../src/ui/uiConfig';
 
 function memStorage(init: Record<string, string> = {}): StorageLike & { data: Record<string, string> } {
   const data = { ...init };
@@ -47,26 +49,38 @@ describe('reduced motion', () => {
 });
 
 describe('resetUserData', () => {
-  it('sets best to 0 and clears the nickname, leaving the leaderboard key alone', () => {
-    const s = memStorage({ best: '40', nick: 'ABC', lb: '[{"score":40}]' });
-    const best = new BestScore(s, 'best');
-    const nick = new NicknameStore(s, 'nick', 12);
-    resetUserData(best, nick);
+  const otherGame = '[{"playerId":"x","nickname":"Bug","score":400,"stats":{"bugsCaught":3},"ts":1}]';
+
+  it('clears Stack Up best and leaderboard but keeps the player profile, other game data and settings', async () => {
+    const s = memStorage({
+      [UI_CONFIG.bestKey]: '40',
+      [UI_CONFIG.leaderboardKey]: '[{"nickname":"A","score":40,"floors":4,"maxCombo":1,"ts":1}]',
+      [UI_CONFIG.reducedMotionKey]: '1',
+      'devcol.player.id': 'pid-1',
+      'devcol.player.nickname': 'Neo',
+      'bugSquash.best': '400',
+      'bugSquash.leaderboard': otherGame,
+    });
+    const best = new BestScore(s, UI_CONFIG.bestKey);
+    resetUserData({ best, storage: s, leaderboardKey: UI_CONFIG.leaderboardKey });
     expect(best.value).toBe(0);
-    expect(nick.value).toBe('');
-    expect(new BestScore(s, 'best').value).toBe(0);
-    expect(new NicknameStore(s, 'nick', 12).value).toBe('');
-    expect(s.data.lb).toBe('[{"score":40}]');
+    expect(new BestScore(s, UI_CONFIG.bestKey).value).toBe(0);
+    expect(await createStackUpLeaderboard(s).getTop(10)).toEqual([]);
+    expect(s.data['devcol.player.id']).toBe('pid-1');
+    expect(s.data['devcol.player.nickname']).toBe('Neo');
+    expect(createPlayerProfile(s).nickname).toBe('Neo');
+    expect(s.data['bugSquash.best']).toBe('400');
+    expect(s.data['bugSquash.leaderboard']).toBe(otherGame);
+    expect(s.data[UI_CONFIG.reducedMotionKey]).toBe('1');
   });
 
-  it('throwing storage does not raise and memory values are reset', () => {
-    const best = new BestScore(broken, 'best');
-    best.submit(10);
-    const nick = new NicknameStore(broken, 'nick', 12);
-    nick.save('A');
-    expect(() => resetUserData(best, nick)).not.toThrow();
-    expect(best.value).toBe(0);
-    expect(nick.value).toBe('');
+  it('throwing or missing storage does not raise and memory values are reset', () => {
+    for (const storage of [broken, null]) {
+      const best = new BestScore(storage, 'best');
+      best.submit(10);
+      expect(() => resetUserData({ best, storage, leaderboardKey: 'lb' })).not.toThrow();
+      expect(best.value).toBe(0);
+    }
   });
 });
 

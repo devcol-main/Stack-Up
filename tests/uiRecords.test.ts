@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BestScore, NicknameStore, type StorageLike } from '../src/ui/records';
+import { BestScore, type StorageLike } from '../src/ui/records';
 
 function memStorage(init: Record<string, string> = {}): StorageLike & { data: Record<string, string> } {
   const data = { ...init };
@@ -61,26 +61,5 @@ describe('BestScore', () => {
     const b = new BestScore(null, 'k');
     expect(b.submit(3)).toBe(true);
     expect(b.value).toBe(3);
-  });
-});
-
-describe('NicknameStore', () => {
-  it('restores the last nickname truncated to the max length', () => {
-    expect(new NicknameStore(memStorage({ n: 'abcdefghijklmnop' }), 'n', 12).value).toBe('abcdefghijkl');
-  });
-
-  it('save persists the nickname', () => {
-    const s = memStorage();
-    const n = new NicknameStore(s, 'n', 12);
-    n.save('Neo');
-    expect(s.data.n).toBe('Neo');
-    expect(n.value).toBe('Neo');
-  });
-
-  it('throwing storage does not break save or load', () => {
-    const n = new NicknameStore(broken, 'n', 12);
-    expect(n.value).toBe('');
-    n.save('Neo');
-    expect(n.value).toBe('Neo');
   });
 });

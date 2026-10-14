@@ -1,5 +1,5 @@
 // 옵션/표시 관련 순수 로직. DOM 없이 테스트 가능.
-import type { BestScore, NicknameStore, StorageLike } from './records';
+import type { BestScore, StorageLike } from './records';
 
 /** OS 설정과 수동 설정 중 하나라도 켜져 있으면 축소 모드. */
 export function effectiveReducedMotion(os: boolean, manual: boolean): boolean {
@@ -30,10 +30,24 @@ export class ReducedMotionStore {
   }
 }
 
-/** 최고 기록 + 닉네임 삭제. 리더보드 데이터는 건드리지 않는다. */
-export function resetUserData(best: BestScore, nickname: NicknameStore): void {
-  best.reset();
-  nickname.clear();
+export interface ResetTargets {
+  best: BestScore;
+  storage: StorageLike | null;
+  /** Stack Up 리더보드가 저장된 키. 빈 목록('[]')으로 덮어쓴다. */
+  leaderboardKey: string;
+}
+
+/**
+ * Stack Up의 최고 기록과 리더보드만 지운다. 공통 플레이어 프로필(playerId, 닉네임)과
+ * 다른 게임 기록은 건드리지 않는다.
+ */
+export function resetUserData(t: ResetTargets): void {
+  t.best.reset();
+  try {
+    t.storage?.setItem(t.leaderboardKey, '[]');
+  } catch {
+    // 저장 불가: 호출 쪽이 서비스 인스턴스를 새로 만들어 메모리 값도 비운다
+  }
 }
 
 /** 마일스톤 팝업 문구. */

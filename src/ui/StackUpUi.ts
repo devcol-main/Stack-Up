@@ -172,6 +172,7 @@ export class StackUpUi {
 
   setOptionsOpen(open: boolean): void {
     this.optionsPanel.hidden = !open;
+    this.root.classList.toggle('options-open', open);
   }
 
   /** Reset data 버튼의 확인 단계 표시. */

@@ -35,4 +35,4 @@ Bug-Squash(`/Users/in9/Programmings/Bug-Squash`)의 루트 구성을 기준으�
 - [x] `npm run media` 동작(시드 7 결과가 분리 전과 같음: score 61, floors 15, maxCombo 11)
 - [ ] 개발 서버에서 게임이 정상 동작(타이틀 → 플레이 → 게임 오버 → Top 10)
 - [x] README 영/한, `docs/site-integration.md` 작성
-- [ ] 원격 리포 생성·푸시 후 CI 통과
+- [x] 원격 리포 생성·푸시 후 CI 통과 (devcol-main/Stack-Up, GitHub Actions 첫 실행 성공 2026-10-15)

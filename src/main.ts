@@ -1,4 +1,4 @@
-import { type LeaderboardEntry, type LeaderboardService } from '../../../shared/leaderboard';
+import { type LeaderboardEntry, type LeaderboardService } from './shared/leaderboard';
 import { createRng } from './core/rng';
 import { StackUpLogic, type StackUpEvent } from './core/StackUpLogic';
 import { AudioManager } from './audio/AudioManager';

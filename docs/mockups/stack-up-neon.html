@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stack Up Neon 시안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;800&family=JetBrains+Mono:wght@400;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f3f4f8; --card:#ffffff; --text:#0e1020; --text-2:#4a5068; --line:rgba(14,16,32,.1); --accent:#2a40d8;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0d0f18; --card:#161a26; --text:#eef0f8; --text-2:#a3a9c2; --line:rgba(255,255,255,.1); --accent:#7d8cff; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.55}
+  header{max-width:1240px;margin:0 auto;padding:40px 16px 8px}
+  h1{font-size:28px;margin:0 0 6px;letter-spacing:-.02em}
+  header p{margin:0;color:var(--text-2);font-size:15px}
+  .grid{max-width:420px;margin:0 auto;padding:24px 16px 48px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .stage{display:flex;justify-content:center}
+  canvas{width:270px;height:480px;border-radius:10px;display:block;cursor:pointer;touch-action:manipulation;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+  .tag{font-size:12px;font-weight:600;color:var(--accent);letter-spacing:.04em;text-transform:uppercase}
+  h2{font-size:19px;margin:2px 0 0}
+  .desc{font-size:14px;color:var(--text-2);margin:0}
+  ul{margin:0;padding-left:18px;font-size:14px}
+  li{margin:2px 0}
+  .pro::marker{content:"+  ";color:#1a9b5c;font-weight:700}
+  .con::marker{content:"−  ";color:#d04848;font-weight:700}
+  .hint{font-size:12px;color:var(--text-2);text-align:center;margin-top:-4px}
+  footer{max-width:1240px;margin:0 auto;padding:0 16px 48px;color:var(--text-2);font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Stack Up · Neon (블록 글자 없음)</h1>
+  <p>선택한 Neon 스타일에서 블록 안의 글자를 뺀 버전이에요. 클릭하거나 탭하면 직접 플레이할 수 있어요.</p>
+</header>
+
+<main class="grid" id="grid"></main>
+
+<footer>브라우저용 시안이라 실제 게임은 Unity로 다시 만들어요. 색, 폰트, 연출 방향만 비교하는 용도예요. 고른 스타일은 Bug Squash, Merge Conflict에도 이어서 쓰면 시리즈처럼 보여요.</footer>
+
+<script>
+const W = 270, H = 480, BH = 22, W0 = 150, BASE_Y = H - 70;
+const NAMES = ['main()','init()','loadScene()','update()','tick()','input()','physics()','spawn()','render()','draw()','flush()','present()','gc()','await()','resolve()','yield()'];
+
+/* ---------- shared game logic ---------- */
+class Game {
+  constructor(style){ this.style = style; this.manual = false; this.best = 0; this.reset(); }
+  reset(){
+    this.stack = [{x:(W-W0)/2, w:W0}];
+    this.pieces = []; this.score = 0; this.combo = 0;
+    this.over = false; this.overT = 0; this.cam = 0; this.flash = 0; this.t = 0;
+    this.spawn();
+  }
+  spawn(){
+    const top = this.stack[this.stack.length-1];
+    const fromLeft = this.stack.length % 2 === 0;
+    this.cur = { w: top.w, x: fromLeft ? -top.w*0.85 : W - top.w*0.15, dir: fromLeft ? 1 : -1 };
+    this.speed = Math.min(110 + this.stack.length*7, 320);
+    const n = this.stack.length;
+    if (n > 12 + Math.random()*14) {
+      this.aiTarget = top.x + (fromLeft ? -(top.w+8) : (top.w+8));
+    } else {
+      const r = Math.random();
+      this.aiTarget = top.x + (r < 0.4 ? 0 : (Math.random()<.5?-1:1)*(5 + Math.random()*20));
+    }
+  }
+  bounds(){ return [-this.cur.w*0.9, W - this.cur.w*0.1]; }
+  update(dt){
+    this.t += dt;
+    this.flash = Math.max(0, this.flash - dt*1.6);
+    for (const p of this.pieces){ p.vy += 900*dt; p.dy += p.vy*dt; p.rot += p.vr*dt; }
+    this.pieces = this.pieces.filter(p => p.dy < 900);
+    const target = Math.max(0, (this.stack.length - 9) * BH);
+    this.cam += (target - this.cam) * Math.min(1, dt*5);
+    if (this.over){
+      this.overT += dt;
+      if (!this.manual && this.overT > 2.0) this.reset();
+      return;
+    }
+    const c = this.cur, [L, R] = this.bounds();
+    const prevX = c.x;
+    c.x += c.dir * this.speed * dt;
+    if (c.x < L){ c.x = L; c.dir = 1; }
+    if (c.x > R){ c.x = R; c.dir = -1; }
+    if (!this.manual){
+      const tg = this.aiTarget;
+      if ((prevX - tg) * (c.x - tg) <= 0 && tg >= L && tg <= R){ c.x = tg; this.drop(); }
+    }
+  }
+  drop(){
+    if (this.over) return;
+    const c = this.cur, top = this.stack[this.stack.length-1], lvl = this.stack.length;
+    const ovL = Math.max(c.x, top.x), ovR = Math.min(c.x+c.w, top.x+top.w), ov = ovR - ovL;
+    if (ov <= 0){
+      this.pieces.push({x:c.x, w:c.w, lvl, dy:0, vy:0, rot:0, vr:(Math.random()-.5)*3});
+      this.over = true; this.overT = 0; this.best = Math.max(this.best, this.score);
+      return;
+    }
+    if (Math.abs(c.x - top.x) <= 4){
+      this.combo++; this.flash = 1;
+      let w = c.w, x = top.x;
+      if (this.combo % 5 === 0){ const nw = Math.min(W0, w + 12); x -= (nw - w)/2; w = nw; }
+      this.stack.push({x, w});
+      this.score += 1 + Math.min(this.combo, 5);
+    } else {
+      this.combo = 0;
+      if (c.x < top.x) this.pieces.push({x:c.x, w:ovL - c.x, lvl, dy:0, vy:0, rot:0, vr:-(1+Math.random()*2)});
+      else this.pieces.push({x:ovR, w:c.x + c.w - ovR, lvl, dy:0, vy:0, rot:0, vr:(1+Math.random()*2)});
+      this.stack.push({x:ovL, w:ov});
+      this.score += 1;
+    }
+    this.spawn();
+  }
+  yOf(lvl){ return BASE_Y - lvl*BH + this.cam; }
+}
+
+function forEachBlock(g, fn){
+  g.stack.forEach((b,i)=>{ const y = g.yOf(i); if (y > -BH && y < H+BH) fn(b.x, y, b.w, i, false); });
+  if (!g.over) fn(g.cur.x, g.yOf(g.stack.length), g.cur.w, g.stack.length, true);
+}
+function forEachPiece(g, fn){ for (const p of g.pieces) fn(p.x, g.yOf(p.lvl) + p.dy, p.w, p.lvl, p.rot); }
+function withRot(ctx, x, y, w, h, rot, draw){
+  ctx.save(); ctx.translate(x + w/2, y + h/2); ctx.rotate(rot); ctx.translate(-(x + w/2), -(y + h/2)); draw(); ctx.restore();
+}
+function roundRect(ctx, x, y, w, h, r){ ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x,y,w,h,r) : ctx.rect(x,y,w,h); }
+function center(ctx, text, y){ ctx.textAlign = 'center'; ctx.fillText(text, W/2, y); }
+
+/* ---------- style A: clean flat (devcol brand) ---------- */
+const flat = {
+  key:'flat', tag:'A', name:'Clean Flat', desc:'devcol.net 사이트의 브랜드 색(블루, 앰버)과 폰트를 그대로 쓴 깔끔한 스타일.',
+  pros:['사이트와 바로 이어져 보여요','에셋이 거의 필요 없어 제작이 가장 빨라요','모바일 WebGL에서도 가벼워요'],
+  cons:['개성은 가장 약해요'],
+  draw(ctx, g){
+    const bg = ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#f4f6fd'); bg.addColorStop(1,'#dfe4f6');
+    ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+    const col = i => { const t = (i % 14)/13, k = t<.5? t*2 : 2-t*2; return `hsl(${232 - k*36} ${72 + k*8}% ${49 + k*8}%)`; };
+    const block = (x,y,w,i,alpha=1) => {
+      ctx.globalAlpha = alpha; ctx.fillStyle = col(i); roundRect(ctx,x,y+1,w,BH-2,4); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(x+3, y+2, Math.max(0,w-6), 2);
+      if (w > 56){ ctx.fillStyle = '#fff'; ctx.font = '600 11px Geist, sans-serif'; ctx.textAlign='center'; ctx.fillText(NAMES[i % NAMES.length], x+w/2, y+BH/2+4); }
+      ctx.globalAlpha = 1;
+    };
+    forEachBlock(g, (x,y,w,i) => block(x,y,w,i));
+    forEachPiece(g, (x,y,w,i,rot) => withRot(ctx,x,y,w,BH,rot,()=>block(x,y,w,i,.85)));
+    ctx.fillStyle = '#0e1020'; ctx.font = '800 11px Geist, sans-serif'; ctx.textAlign='left'; ctx.fillText('STACK UP', 16, 28);
+    ctx.font = '800 44px Geist, sans-serif'; center(ctx, g.score, 84);
+    if (g.flash > 0 && !g.over){
+      ctx.globalAlpha = g.flash; ctx.fillStyle = '#f2b43c'; roundRect(ctx, W/2-54, 100, 108, 24, 12); ctx.fill();
+      ctx.fillStyle = '#1e1400'; ctx.font = '800 12px Geist, sans-serif'; center(ctx, g.combo > 1 ? `PERFECT ×${g.combo}` : 'PERFECT', 116); ctx.globalAlpha = 1;
+    }
+    if (g.over){
+      ctx.fillStyle = 'rgba(14,16,32,.35)'; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#fff'; roundRect(ctx, 30, 160, W-60, 150, 14); ctx.fill();
+      ctx.fillStyle = '#5a607c'; ctx.font = '600 12px Geist, sans-serif'; center(ctx, 'GAME OVER', 192);
+      ctx.fillStyle = '#0e1020'; ctx.font = '800 40px Geist, sans-serif'; center(ctx, g.score, 238);
+      ctx.fillStyle = '#5a607c'; ctx.font = '600 12px Geist, sans-serif'; center(ctx, `BEST ${g.best}`, 262);
+      ctx.fillStyle = '#2a40d8'; ctx.font = '600 13px Geist, sans-serif'; center(ctx, 'Tap to retry', 292);
+    }
+  }
+};
+
+/* ---------- style B: code editor ---------- */
+const code = {
+  key:'code', tag:'B', name:'Code Editor', desc:'코드 에디터 화면 콘셉트. 블록 하나가 콜 스택의 함수 프레임이고, 게임 오버는 예외 메시지로 나와요.',
+  pros:['개발자 테마가 가장 확실하게 드러나요','텍스트와 사각형 위주라 에셋 부담이 적어요','Bug Squash, Merge Conflict와 세계관을 잇기 좋아요'],
+  cons:['개발자가 아닌 사람에게는 덜 친숙할 수 있어요'],
+  draw(ctx, g){
+    const syn = ['#c792ea','#82aaff','#c3e88d','#f78c6c','#89ddff','#ffcb6b'];
+    ctx.fillStyle = '#0f111a'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#0a0c13'; ctx.fillRect(0,0,30,H);
+    ctx.font = '10px "JetBrains Mono", monospace'; ctx.textAlign = 'right'; ctx.fillStyle = '#3b4058';
+    const first = Math.max(0, Math.floor((BASE_Y + g.cam - H) / BH));
+    for (let i = first; i < first + 26; i++){ const y = g.yOf(i); if (y > 30 && y < H) ctx.fillText(String(i+1), 24, y + BH/2 + 4); }
+    const block = (x,y,w,i,moving,alpha=1) => {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = moving ? '#232a42' : '#1a1e2d'; ctx.fillRect(x, y+1, w, BH-2);
+      ctx.fillStyle = syn[i % syn.length]; ctx.fillRect(x, y+1, 3, BH-2);
+      if (w > 50){ ctx.textAlign = 'left'; ctx.font = '11px "JetBrains Mono", monospace';
+        ctx.fillStyle = '#676e95'; ctx.fillText('at', x+9, y+BH/2+4);
+        ctx.fillStyle = syn[i % syn.length]; ctx.fillText(NAMES[i % NAMES.length], x+27, y+BH/2+4); }
+      if (moving && Math.floor(g.t*2)%2===0){ ctx.fillStyle = '#ffcc00'; ctx.fillRect(x + w - 6, y+5, 2, BH-10); }
+      ctx.globalAlpha = 1;
+    };
+    forEachBlock(g, (x,y,w,i,m) => block(x,y,w,i,m));
+    forEachPiece(g, (x,y,w,i,rot) => withRot(ctx,x,y,w,BH,rot,()=>block(x,y,w,i,false,.8)));
+    ctx.fillStyle = '#151927'; ctx.fillRect(0,0,W,30);
+    ctx.fillStyle = '#0f111a'; ctx.fillRect(30,0,92,30); ctx.fillStyle = '#ffcb6b'; ctx.fillRect(30,0,92,2);
+    ctx.font = '11px "JetBrains Mono", monospace'; ctx.textAlign='left'; ctx.fillStyle = '#c8cde6'; ctx.fillText('StackUp.cs', 40, 19);
+    ctx.fillStyle = '#676e95'; ctx.fillText('// depth', 42, 56);
+    ctx.font = '700 36px "JetBrains Mono", monospace'; ctx.fillStyle = '#c3e88d'; ctx.fillText(String(g.score), 42, 94);
+    if (g.flash > 0 && !g.over){ ctx.globalAlpha = g.flash; ctx.font = '700 12px "JetBrains Mono", monospace'; ctx.fillStyle = '#89ddff';
+      ctx.fillText(g.combo > 1 ? `✓ perfect x${g.combo}` : '✓ perfect', 44, 116); ctx.globalAlpha = 1; }
+    if (g.over){
+      ctx.fillStyle = 'rgba(8,9,14,.82)'; ctx.fillRect(0,0,W,H);
+      ctx.textAlign='left'; ctx.font = '700 12px "JetBrains Mono", monospace'; ctx.fillStyle = '#ff5370'; ctx.fillText('Unhandled exception:', 22, 180);
+      ctx.fillText('StackCollapsedException', 22, 198);
+      ctx.font = '11px "JetBrains Mono", monospace'; ctx.fillStyle = '#676e95';
+      ctx.fillText('  at Stack.Drop() line ' + (g.stack.length+1), 22, 222);
+      ctx.fillText('  at Player.Tap()', 22, 238);
+      ctx.fillStyle = '#c8cde6'; ctx.fillText('depth  = ' + g.score, 22, 270); ctx.fillText('best   = ' + g.best, 22, 286);
+      ctx.fillStyle = '#c3e88d'; ctx.fillText('> tap to retry' + (Math.floor(g.t*2)%2? '_' : ''), 22, 320);
+    }
+  }
+};
+
+/* ---------- style C: pixel art ---------- */
+const PX = 2;
+const pixel = {
+  key:'pixel', tag:'C', name:'Pixel Art', desc:'저해상도로 그린 뒤 확대한 레트로 아케이드 스타일.',
+  pros:['아케이드 미니게임 느낌이 가장 강해요','이후 장르 게임들까지 통일감 있게 이어가기 쉬워요'],
+  cons:['도트 에셋 품질과 일관성을 유지하는 데 손이 많이 가요','개발자 테마와의 연결은 약해요'],
+  off:null,
+  draw(ctx, g){
+    if (!this.off){ this.off = document.createElement('canvas'); this.off.width = W/PX; this.off.height = H/PX; }
+    const o = this.off.getContext('2d'), r = v => Math.round(v/PX);
+    const band = ['#1b1c3a','#24265a','#2f3277','#3d3f95'];
+    for (let i=0;i<4;i++){ o.fillStyle = band[i]; o.fillRect(0, r(i*H/4), r(W), r(H/4)+1); }
+    o.fillStyle = '#ffffff';
+    for (let s=0;s<22;s++){ const sx = (s*53)%W, sy = ((s*97) + g.cam*0.3) % (H*0.7); if ((Math.floor(g.t*3)+s)%5) o.fillRect(r(sx), r(sy), 1, 1); }
+    const pal = [['#ff6b6b','#ff9e9e','#b94343'],['#ffd166','#ffe39e','#c49a34'],['#06d6a0','#6befc9','#04936e'],['#4cc9f0','#97e2f8','#2b8fae'],['#b388eb','#d2b8f5','#7d58b0']];
+    const block = (x,y,w,i,alpha=1) => {
+      const [m,hi,sh] = pal[i % pal.length]; o.globalAlpha = alpha;
+      const X=r(x), Y=r(y), Wd=Math.max(1,r(w)), Hd=r(BH);
+      o.fillStyle = sh; o.fillRect(X, Y, Wd, Hd);
+      o.fillStyle = m; o.fillRect(X, Y, Wd, Hd-2);
+      o.fillStyle = hi; o.fillRect(X, Y, Wd, 1);
+      o.fillStyle = 'rgba(0,0,0,.25)'; o.fillRect(X, Y, 1, Hd);
+      o.globalAlpha = 1;
+    };
+    forEachBlock(g, (x,y,w,i) => block(x,y,w,i));
+    for (const p of g.pieces){ block(p.x + (p.rot*6), g.yOf(p.lvl)+p.dy, p.w, p.lvl, .9); }
+    ctx.imageSmoothingEnabled = false; ctx.drawImage(this.off, 0, 0, W, H);
+    ctx.fillStyle = '#fff'; ctx.font = '10px "Press Start 2P", monospace'; ctx.textAlign='left'; ctx.fillText('STACK UP', 14, 26);
+    ctx.font = '26px "Press Start 2P", monospace'; ctx.fillStyle = '#000'; center(ctx, g.score, 86); ctx.fillStyle = '#ffd166'; center(ctx, g.score, 83);
+    if (g.flash > 0 && !g.over && Math.floor(g.t*10)%2===0){ ctx.font = '10px "Press Start 2P", monospace'; ctx.fillStyle = '#06d6a0'; center(ctx, g.combo>1?`PERFECT x${g.combo}`:'PERFECT', 112); }
+    if (g.over){
+      ctx.fillStyle = 'rgba(10,10,30,.7)'; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#000'; ctx.fillRect(34,168,W-68,140); ctx.fillStyle = '#fff'; ctx.fillRect(36,170,W-72,136); ctx.fillStyle = '#1b1c3a'; ctx.fillRect(40,174,W-80,128);
+      ctx.font = '12px "Press Start 2P", monospace'; ctx.fillStyle = '#ff6b6b'; center(ctx, 'GAME OVER', 204);
+      ctx.font = '22px "Press Start 2P", monospace'; ctx.fillStyle = '#ffd166'; center(ctx, g.score, 244);
+      ctx.font = '8px "Press Start 2P", monospace'; ctx.fillStyle = '#fff'; center(ctx, 'HI ' + g.best, 266);
+      if (Math.floor(g.t*2)%2===0){ ctx.fillStyle = '#4cc9f0'; center(ctx, 'PRESS TO RETRY', 290); }
+    }
+  }
+};
+
+/* ---------- style D: neon ---------- */
+const neon = {
+  key:'neon', tag:'D', name:'Neon', desc:'어두운 배경에 빛나는 외곽선, 바닥 그리드가 있는 신스웨이브 스타일.',
+  pros:['스크린샷과 짧은 영상에서 가장 눈에 띄어요','홍보용 클립 만들기 좋아요'],
+  cons:['글로우 효과가 저사양 모바일 WebGL에서 부담이 될 수 있어요','블록에 글자가 없어서 개발자 테마는 이름과 게임 오버 문구로만 드러나요'],
+  draw(ctx, g){
+    const bg = ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#07020f'); bg.addColorStop(1,'#1d0634');
+    ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle = 'rgba(255,60,200,.25)'; ctx.lineWidth = 1;
+    const gy = BASE_Y + BH + g.cam;
+    if (gy < H){
+      for (let k=0;k<8;k++){ const y = gy + Math.pow(k/7, 1.8)*(H - gy); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+      for (let k=-6;k<=6;k++){ ctx.beginPath(); ctx.moveTo(W/2 + k*14, gy); ctx.lineTo(W/2 + k*60, H); ctx.stroke(); }
+    }
+    const hue = i => [320, 190, 275, 160, 25][i % 5];
+    const block = (x,y,w,i,alpha=1) => {
+      const h = hue(i); ctx.globalAlpha = alpha;
+      ctx.fillStyle = `hsla(${h} 100% 60% / .16)`; ctx.fillRect(x, y+2, w, BH-4);
+      ctx.shadowColor = `hsl(${h} 100% 60%)`; ctx.shadowBlur = 10;
+      ctx.strokeStyle = `hsl(${h} 100% 70%)`; ctx.lineWidth = 1.5; ctx.strokeRect(x+.75, y+2.75, w-1.5, BH-5.5);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    };
+    forEachBlock(g, (x,y,w,i) => block(x,y,w,i));
+    forEachPiece(g, (x,y,w,i,rot) => withRot(ctx,x,y,w,BH,rot,()=>block(x,y,w,i,.75)));
+    const glowText = (t, y, size, color) => { ctx.font = `800 ${size}px Geist, sans-serif`; ctx.shadowColor = color; ctx.shadowBlur = 14; ctx.fillStyle = '#fff'; center(ctx, t, y); ctx.shadowBlur = 0; };
+    ctx.font = '800 11px Geist, sans-serif'; ctx.textAlign='left'; ctx.fillStyle = '#ff7ad9'; ctx.fillText('STACK UP', 16, 28);
+    glowText(String(g.score), 84, 44, '#ff3cc8');
+    if (g.flash > 0 && !g.over){ ctx.globalAlpha = g.flash; glowText(g.combo>1?`PERFECT ×${g.combo}`:'PERFECT', 116, 14, '#33e1ff'); ctx.globalAlpha = 1; }
+    if (g.over){
+      ctx.fillStyle = 'rgba(5,0,12,.72)'; ctx.fillRect(0,0,W,H);
+      glowText('GAME OVER', 200, 22, '#ff3cc8');
+      glowText(String(g.score), 252, 46, '#33e1ff');
+      ctx.font = '600 12px Geist, sans-serif'; ctx.fillStyle = '#c9a8ff'; center(ctx, 'BEST ' + g.best, 278);
+      ctx.fillStyle = '#ff7ad9'; center(ctx, 'Tap to retry', 308);
+    }
+  }
+};
+
+/* ---------- mount ---------- */
+const styles = [neon];
+const grid = document.getElementById('grid');
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+const items = styles.map(s => {
+  const card = document.createElement('section'); card.className = 'card';
+  card.innerHTML = `<div class="stage"><canvas width="${W*dpr}" height="${H*dpr}" aria-label="${s.name} preview"></canvas></div>
+    <div class="hint">클릭하거나 탭해서 직접 플레이</div>
+    <div><div class="tag">Option ${s.tag}</div><h2>${s.name}</h2></div>
+    <p class="desc">${s.desc}</p>
+    <ul>${s.pros.map(p=>`<li class="pro">${p}</li>`).join('')}${s.cons.map(c=>`<li class="con">${c}</li>`).join('')}</ul>`;
+  grid.appendChild(card);
+  const canvas = card.querySelector('canvas'), ctx = canvas.getContext('2d');
+  const g = new Game(s);
+  const hint = card.querySelector('.hint');
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (!g.manual){ g.manual = true; g.best = 0; g.reset(); hint.textContent = '직접 플레이 중 · 탭해서 블록 놓기'; return; }
+    if (g.over){ if (g.overT > 0.3) g.reset(); } else g.drop();
+  });
+  return {s, g, ctx};
+});
+
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now - last)/1000); last = now;
+  for (const {s, g, ctx} of items){
+    g.update(dt);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.imageSmoothingEnabled = true;
+    s.draw(ctx, g);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

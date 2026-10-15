@@ -1,0 +1,14 @@
+Stack Up
+Copyright 2026 DevCol
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party assets bundled with this project:
+
+- Geist (variable font, latin subset)
+  Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)
+  Licensed under the SIL Open Font License, Version 1.1.
+  License text: public/licenses/Geist-OFL-LICENSE.txt
+
+The DevCol logo (src/assets/devcol-logo.png and devcol-logo-dark.png) is owned by DevCol.
+It is not licensed for reuse under Apache-2.0.

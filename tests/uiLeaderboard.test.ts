@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { StorageLike } from '../../../shared/leaderboard';
+import type { StorageLike } from '../src/shared/leaderboard';
 import { createPlayerProfile, createStackUpLeaderboard, sanitizeStackUpStats } from '../src/ui/leaderboard';
 import { UI_CONFIG } from '../src/ui/uiConfig';
 

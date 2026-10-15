@@ -12,6 +12,13 @@ if [ ! -d "$src" ]; then
   exit 1
 fi
 
+site_docs="$repo_root/../devcol-site/devcol-build/docs"
+if [ ! -d "$site_docs" ]; then
+  echo "Site repo not found: $site_docs" >&2
+  echo "Expected devcol-site next to this repo (../devcol-site/devcol-build/docs). Nothing was copied." >&2
+  exit 1
+fi
+
 rm -rf "$dest"
 mkdir -p "$dest"
 cp -R "$src/." "$dest/"

@@ -30,9 +30,9 @@ Bug-Squash(`/Users/in9/Programmings/Bug-Squash`)의 루트 구성을 기준으�
   - 업데이트 절차(게임 수정 → 빌드 → 복사 → 사이트 커밋)
 
 ## 완료 조건
-- [ ] `npm ci && npm run check` 통과(기존 Stack Up 테스트 + shared 테스트)
-- [ ] `npm run build` 성공, `bash scripts/verify-build.sh` 통과(300KB 이하, 개발 훅 없음)
-- [ ] `npm run media` 동작(시드 7 결과가 분리 전과 같음: score 61, floors 15, maxCombo 11)
+- [x] `npm ci && npm run check` 통과(기존 Stack Up 테스트 + shared 테스트)
+- [x] `npm run build` 성공, `bash scripts/verify-build.sh` 통과(300KB 이하, 개발 훅 없음)
+- [x] `npm run media` 동작(시드 7 결과가 분리 전과 같음: score 61, floors 15, maxCombo 11)
 - [ ] 개발 서버에서 게임이 정상 동작(타이틀 → 플레이 → 게임 오버 → Top 10)
-- [ ] README 영/한, `docs/site-integration.md` 작성
+- [x] README 영/한, `docs/site-integration.md` 작성
 - [ ] 원격 리포 생성·푸시 후 CI 통과

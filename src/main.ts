@@ -11,6 +11,7 @@ import { StackUpUi } from './ui/StackUpUi';
 import { FrameClock } from './ui/frameClock';
 import { waitForFont } from './ui/fonts';
 import { UI_CONFIG } from './ui/uiConfig';
+import { track } from './analytics';
 import './ui/ui.css';
 
 declare global {
@@ -59,6 +60,8 @@ if (canvas instanceof HTMLCanvasElement) {
 
   /** 이번 판의 결과 (게임 오버 이벤트에서 채움). 제출은 flow.claimSubmit()으로 판당 1회. */
   const result = { score: 0, floors: 0, maxCombo: 0 };
+  /** 이번 판 시작 시각 (performance.now). 애널리틱스 game_over의 duration_ms용. */
+  let runStartedAt = 0;
 
   const refreshBoard = (mine: LeaderboardEntry<StackUpStats> | null): void => {
     const round = flow.round;
@@ -97,7 +100,9 @@ if (canvas instanceof HTMLCanvasElement) {
       ui.flashPerfect(ev.combo);
     } else if (ev.type === 'milestone') {
       ui.flashMilestone(ev.floors);
+      track('stage_clear', { stage: ev.floors, score: logic.score });
     } else if (ev.type === 'gameOver' && flow.endGame()) {
+      track('game_over', { stage: ev.floors, score: ev.score, duration_ms: Math.round(performance.now() - runStartedAt) });
       result.score = ev.score;
       result.floors = ev.floors;
       result.maxCombo = ev.maxCombo;
@@ -119,6 +124,7 @@ if (canvas instanceof HTMLCanvasElement) {
       const active = document.activeElement;
       if (active instanceof HTMLElement && (isTextTarget(active) || active === ui.retryButton)) active.blur();
       logic.reset();
+      runStartedAt = performance.now();
       audio.unduck();
       renderer.reset();
       ui.setScore(0);

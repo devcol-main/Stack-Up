@@ -44,6 +44,8 @@
         <input id="nick" class="nick" type="text" maxlength="12" placeholder="Nickname" aria-label="Nickname" autocomplete="off" autocapitalize="off" spellcheck="false">
         <button class="submit" type="submit">Submit</button>
       </form>
+      <p id="nick-rule" class="nick-rule"></p>
+      <p id="board-note" class="board-note" aria-live="polite" hidden></p>
       <ol id="board" class="board" data-ui></ol>
       <button id="retry" class="retry" type="button">Tap to retry</button>
     </section>
@@ -60,6 +62,7 @@
         <div class="opt-row"><label class="opt-label" for="opt-sfx-vol">SFX Volume</label><input id="opt-sfx-vol" class="opt-range" type="range" min="0" max="100" step="1" value="100"></div>
         <div class="opt-row"><span class="opt-label" id="lbl-rm">Reduced motion</span><button id="opt-rm" class="opt-toggle" type="button" aria-pressed="false" aria-labelledby="lbl-rm">Off</button></div>
         <div class="opt-row"><span class="opt-label" id="lbl-reset">Best score &amp; scores</span><button id="opt-reset" class="opt-toggle opt-danger" type="button">Reset data</button></div>
+        <div class="opt-row"><span class="opt-label" id="lbl-lb-delete">Online scores (all games)</span><button id="opt-lb-delete" class="opt-toggle opt-danger" type="button" aria-labelledby="lbl-lb-delete opt-lb-delete">Delete mine</button></div>
         <button id="opt-close" class="opt-close" type="button">Close</button>
       </div>
     </div>

@@ -121,8 +121,11 @@ Everything lives in `localStorage` behind `try/catch`, so the game still runs wh
 | `stackup.audio` | BGM/SFX toggles and volumes |
 | `stackup.reducedMotion` | Manual reduced-motion setting |
 | `devcol.player.id`, `devcol.player.nickname` | Shared player profile |
+| `devcol.player.token`, `devcol.player.lbEntries` | Online leaderboard owner token and own entry ids (shared) |
 
-The leaderboard is local for now, behind a `LeaderboardService` interface so a server can replace it later. The player profile (one ID and nickname) in [`src/shared/`](src/shared/) is shared at runtime with [Bug Squash](https://github.com/devcol-main/Bug-Squash) when both games are served from the same domain, so the format must stay in sync with that repository. The old `stackup.nickname` key is read once for migration and not written again.
+On devcol.net the Top 10 comes from the shared online leaderboard (`a.devcol.net/lb`, server in [devcol-analytics](https://github.com/devcol-main/devcol-analytics)). No login: the first submit gets a random owner token, which is needed to delete your own online scores (Options → Online scores → Delete mine). The player ID is never sent. Names are checked on the server; offensive ones are shown as `Player####`. Every score is also saved locally, and when the server can't be reached the game shows the local board with an "Offline" note. Outside devcol.net (local dev) it is local only; `npm run dev` with `?lb=http://localhost:8787/lb` talks to a local Worker.
+
+The leaderboard sits behind the `LeaderboardService` interface (`OnlineLeaderboardService` wraps `LocalLeaderboardService`). The player profile (one ID and nickname) in [`src/shared/`](src/shared/) is shared at runtime with [Bug Squash](https://github.com/devcol-main/Bug-Squash) when both games are served from the same domain, so the format must stay in sync with that repository. The old `stackup.nickname` key is read once for migration and not written again.
 
 ### Size
 

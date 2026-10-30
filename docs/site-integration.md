@@ -98,15 +98,18 @@ npm ci && npm run build && bash scripts/verify-build.sh && bash scripts/copy-to-
 |---|---|---|
 | `devcol.player.id` | 익명 플레이어 ID(랜덤 생성) | 공유(Stack Up과 Bug Squash가 같은 값 사용) |
 | `devcol.player.nickname` | 플레이어 닉네임(최대 12자, 비면 `Anonymous`) | 공유 |
+| `devcol.player.token` | 온라인 리더보드 소유 토큰(서버가 첫 제출 때 발급, 64자 hex). 내 온라인 기록 삭제에 필요 | 공유 |
+| `devcol.player.lbEntries` | 온라인 리더보드의 내 항목 id(`{"stack-up": 12}`), 순위표 하이라이트용 | 공유 |
 | `stackup.nickname` | 옛 닉네임 키. 공통 닉네임이 없을 때 한 번 **읽어서 가져오기만** 하고 쓰지 않음 | Stack Up 전용(레거시, 읽기 전용). Bug Squash 쪽은 `bugSquash.nickname`을 같은 방식으로 가져옴 |
 | `stackup.best` | 최고 점수 | Stack Up 전용 |
-| `stackup.leaderboard` | 로컬 Top 리스트(최대 50개 저장, 화면엔 Top 10). 서버 전송 없음, 브라우저별 기록 | Stack Up 전용 |
+| `stackup.leaderboard` | 로컬 Top 리스트(최대 50개 저장). 서버에 못 닿을 때(오프라인) 화면에 보이는 기록 | Stack Up 전용 |
 | `stackup.reducedMotion` | 수동 Reduced motion 설정(`'1'`/`'0'`) | Stack Up 전용 |
 | `stackup.muted` | 전체 음소거 상태 | Stack Up 전용 |
 | `stackup.audio` | BGM/SFX 켜기와 볼륨 설정(JSON) | Stack Up 전용 |
 
 - Bug Squash 전용 키(참고, 같은 도메인에 공존): `bugSquash.best`, `bugSquash.leaderboard`, `bugSquash.reducedMotion`, `bugSquash.vibration`, `bugSquash.audio.muted`, `bugSquash.audio.settings`, 레거시 `bugSquash.nickname` (출처: Bug-Squash 리포 `src/ui/uiConfig.ts`, `src/audio/audioConfig.ts`).
 - 게임 옵션의 "Reset data"는 `stackup.best`와 `stackup.leaderboard`만 지운다. `devcol.player.*`와 다른 게임 기록은 건드리지 않는다(`src/ui/options.ts`의 `resetUserData`).
+- 온라인 리더보드: devcol.net에서 열리면 `https://a.devcol.net/lb`로 제출/조회한다(`src/shared/leaderboard/OnlineLeaderboardService.ts`). 페이지의 `<html data-lb-endpoint="...">`로 바꿀 수 있다. 사이트 쪽 연동 절차는 devcol-site의 `docs/GAME-LEADERBOARD.md`.
 - **공유 키 형식은 바꾸지 않는다.** 바꿔야 하면 두 리포(Stack-Up, Bug-Squash)의 `src/shared`를 같이 맞춘다.
 - 사이트 쪽에서 쿠키/저장소 안내(Privacy Policy)에 게임이 브라우저에 저장하는 값이 있다는 내용을 넣을지는 **확인 필요**(사이트 세션과 사용자 판단). 게임은 개인정보를 서버로 보내지 않는다(리더보드는 로컬 전용).
 

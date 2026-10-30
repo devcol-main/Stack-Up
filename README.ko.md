@@ -121,8 +121,11 @@ tests/      Vitest
 | `stackup.audio` | BGM/SFX 켜기와 볼륨 |
 | `stackup.reducedMotion` | 수동 Reduced motion 설정 |
 | `devcol.player.id`, `devcol.player.nickname` | 공통 플레이어 프로필 |
+| `devcol.player.token`, `devcol.player.lbEntries` | 온라인 리더보드 소유 토큰과 내 항목 id (공유) |
 
-리더보드는 아직 로컬이고, 나중에 서버로 바꿀 수 있도록 `LeaderboardService` 인터페이스 뒤에 있습니다. [`src/shared/`](src/shared/)의 플레이어 프로필(ID 하나와 닉네임)은 같은 도메인에서 서비스하면 [Bug Squash](https://github.com/devcol-main/Bug-Squash)와 런타임에 공유되므로, 형식을 그 저장소와 맞춰 두어야 합니다. 옛 `stackup.nickname` 키는 이전용으로 한 번 읽기만 하고 다시 쓰지 않습니다.
+devcol.net에서는 Top 10을 공용 온라인 리더보드(`a.devcol.net/lb`, 서버는 [devcol-analytics](https://github.com/devcol-main/devcol-analytics))에서 가져옵니다. 로그인은 없고, 첫 제출 때 받은 랜덤 토큰으로 내 온라인 기록을 지울 수 있습니다(Options → Online scores → Delete mine). 플레이어 ID는 보내지 않습니다. 닉네임은 서버가 검사하고, 부적절한 이름은 `Player####`로 보입니다. 모든 점수는 로컬에도 저장되며, 서버에 닿지 못하면 "Offline" 안내와 함께 로컬 순위를 보여 줍니다. devcol.net 밖(로컬 dev)에서는 로컬 전용이고, `npm run dev`에 `?lb=http://localhost:8787/lb`를 붙이면 로컬 Worker에 연결합니다.
+
+리더보드는 `LeaderboardService` 인터페이스 뒤에 있습니다(`OnlineLeaderboardService`가 `LocalLeaderboardService`를 감쌈). [`src/shared/`](src/shared/)의 플레이어 프로필(ID 하나와 닉네임)은 같은 도메인에서 서비스하면 [Bug Squash](https://github.com/devcol-main/Bug-Squash)와 런타임에 공유되므로, 형식을 그 저장소와 맞춰 두어야 합니다. 옛 `stackup.nickname` 키는 이전용으로 한 번 읽기만 하고 다시 쓰지 않습니다.
 
 ### 용량
 

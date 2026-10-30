@@ -1,4 +1,4 @@
-import { type LeaderboardEntry, type LeaderboardService } from './shared/leaderboard';
+import { resolveLbEndpoint, type LeaderboardEntry } from './shared/leaderboard';
 import { createRng } from './core/rng';
 import { StackUpLogic, type StackUpEvent } from './core/StackUpLogic';
 import { AudioManager } from './audio/AudioManager';
@@ -6,7 +6,14 @@ import { StackUpRenderer } from './view/StackUpRenderer';
 import { GameFlow } from './ui/flow';
 import { ConfirmGate, ReducedMotionStore, effectiveReducedMotion, hudBest, resetUserData } from './ui/options';
 import { BestScore, browserStorage } from './ui/records';
-import { createPlayerProfile, createStackUpLeaderboard, nicknameToSubmit, type StackUpStats } from './ui/leaderboard';
+import {
+  boardNote,
+  createPlayerProfile,
+  createStackUpOnlineLeaderboard,
+  nicknameToSubmit,
+  sameLocalEntry,
+  type StackUpStats,
+} from './ui/leaderboard';
 import { StackUpUi } from './ui/StackUpUi';
 import { FrameClock } from './ui/frameClock';
 import { waitForFont } from './ui/fonts';
@@ -42,7 +49,12 @@ if (canvas instanceof HTMLCanvasElement) {
   const ui = new StackUpUi(UI_CONFIG.leaderboardSize);
   const best = new BestScore(storage, UI_CONFIG.bestKey);
   const profile = createPlayerProfile(storage);
-  let leaderboard: LeaderboardService<StackUpStats> = createStackUpLeaderboard();
+  // 온라인 리더보드 서버: <html data-lb-endpoint>가 있으면 그것, devcol.net이면 기본 서버, 그 밖(로컬 dev)은 로컬 전용.
+  // 개발 모드 전용: ?lb=http://localhost:8787/lb 로 로컬 Worker에 붙인다.
+  const lbOverride = document.documentElement.dataset.lbEndpoint ?? (import.meta.env.DEV ? new URLSearchParams(location.search).get('lb') : null);
+  const lbEndpoint = resolveLbEndpoint(location.hostname, lbOverride);
+  let leaderboard = createStackUpOnlineLeaderboard(profile, lbEndpoint);
+  ui.onReport = (entryId) => leaderboard.report(entryId);
   ui.setMuted(audio.isMuted());
   ui.syncAudio(audio.getSettings());
   ui.setTitleBest(best.value);
@@ -59,7 +71,7 @@ if (canvas instanceof HTMLCanvasElement) {
   });
 
   /** 이번 판의 결과 (게임 오버 이벤트에서 채움). 제출은 flow.claimSubmit()으로 판당 1회. */
-  const result = { score: 0, floors: 0, maxCombo: 0 };
+  const result = { score: 0, floors: 0, maxCombo: 0, durationMs: 0 };
   /** 이번 판 시작 시각 (performance.now). 애널리틱스 game_over의 duration_ms용. */
   let runStartedAt = 0;
 
@@ -68,7 +80,10 @@ if (canvas instanceof HTMLCanvasElement) {
     leaderboard.getTop(UI_CONFIG.leaderboardSize).then(
       (entries) => {
         // 그 사이 재시작했거나 다른 판이면 버린다
-        if (flow.round === round && flow.phase === 'gameOver') ui.renderBoard(entries, mine);
+        if (flow.round !== round || flow.phase !== 'gameOver') return;
+        const fromServer = leaderboard.lastSource === 'online';
+        ui.renderBoard(entries, (e) => (fromServer ? leaderboard.isMine(e) : sameLocalEntry(e, mine)), fromServer);
+        ui.setBoardNote(boardNote(leaderboard.online, leaderboard.lastSource, mine ? leaderboard.lastResult : null));
       },
       () => {},
     );
@@ -85,8 +100,9 @@ if (canvas instanceof HTMLCanvasElement) {
       stats: { floors: result.floors, maxCombo: result.maxCombo },
       ts: Date.now(),
     };
+    const durationMs = result.durationMs;
     ui.hideNickForm();
-    leaderboard.submit(entry).then(
+    leaderboard.submit({ ...entry, durationMs }).then(
       () => refreshBoard(entry),
       () => refreshBoard(null),
     );
@@ -102,7 +118,8 @@ if (canvas instanceof HTMLCanvasElement) {
       ui.flashMilestone(ev.floors);
       track('stage_clear', { stage: ev.floors, score: logic.score });
     } else if (ev.type === 'gameOver' && flow.endGame()) {
-      track('game_over', { stage: ev.floors, score: ev.score, duration_ms: Math.round(performance.now() - runStartedAt) });
+      result.durationMs = Math.round(performance.now() - runStartedAt);
+      track('game_over', { stage: ev.floors, score: ev.score, duration_ms: result.durationMs });
       result.score = ev.score;
       result.floors = ev.floors;
       result.maxCombo = ev.maxCombo;
@@ -188,6 +205,7 @@ if (canvas instanceof HTMLCanvasElement) {
   const closeOptions = (): void => {
     if (!flow.optionsOpen) return;
     cancelReset();
+    cancelLbDelete();
     flow.closeOptions();
     ui.setOptionsOpen(false);
     // 열었던 버튼에 포커스가 남아 Space가 다시 열지 않게
@@ -212,6 +230,33 @@ if (canvas instanceof HTMLCanvasElement) {
       first.focus();
     }
   };
+  // 온라인 기록 삭제: Reset과 같은 2단계 확인. 토큰은 모든 게임이 같이 쓰므로 모든 게임의 내 온라인 기록이 지워진다.
+  const lbDeleteGate = new ConfirmGate(UI_CONFIG.resetConfirmMs);
+  let lbDeleteTimer: ReturnType<typeof setTimeout> | null = null;
+  let lbDeleting = false;
+  const cancelLbDelete = (): void => {
+    lbDeleteGate.cancel();
+    if (lbDeleteTimer !== null) clearTimeout(lbDeleteTimer);
+    lbDeleteTimer = null;
+    if (!lbDeleting) ui.setLbDeleteState('idle');
+  };
+  ui.optLbDelete.addEventListener('click', () => {
+    if (lbDeleting) return;
+    if (lbDeleteGate.press(performance.now()) === 'armed') {
+      ui.setLbDeleteState('armed');
+      if (lbDeleteTimer !== null) clearTimeout(lbDeleteTimer);
+      lbDeleteTimer = setTimeout(cancelLbDelete, UI_CONFIG.resetConfirmMs);
+      return;
+    }
+    cancelLbDelete();
+    lbDeleting = true;
+    ui.setLbDeleteState('busy');
+    leaderboard.deleteMine().then((r) => {
+      lbDeleting = false;
+      ui.setLbDeleteState(r);
+      if (flow.phase === 'gameOver') refreshBoard(null);
+    });
+  });
   ui.optionsButton.addEventListener('click', openOptions);
   ui.optClose.addEventListener('click', closeOptions);
   ui.optSound.addEventListener('click', () => toggleMute());
@@ -233,10 +278,10 @@ if (canvas instanceof HTMLCanvasElement) {
     }
     cancelReset();
     resetUserData({ best, storage, leaderboardKey: UI_CONFIG.leaderboardKey });
-    leaderboard = createStackUpLeaderboard(); // 메모리에 남은 기록도 비운다
+    leaderboard = createStackUpOnlineLeaderboard(profile, lbEndpoint); // 메모리에 남은 로컬 기록도 비운다
     ui.setTitleBest(best.value);
     ui.refreshAfterReset();
-    if (flow.phase === 'gameOver') ui.renderBoard([], null);
+    if (flow.phase === 'gameOver') refreshBoard(null); // 온라인 순위표는 Reset과 무관하다
   });
   audio.onSettingsChange((s) => ui.syncAudio(s));
 
